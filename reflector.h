@@ -19,9 +19,11 @@ namespace Reflector {
   // A bag of owned properties. 
   class has_props {
 
-  public:
+  protected:
 
     std::vector< Ref > m_props;
+
+  public:
 
     // Fallback for last template
     void initProp() { }
@@ -168,6 +170,9 @@ namespace Reflector {
   }
 
   // -------------------------------------------
+  // A Ref is a pair of address + type_info
+  // The addr is not owned by the Ref, we are just referencing it.
+  // It should be cheat to copy/move refs
   class Ref {
   public:
     const type* m_type = nullptr;
