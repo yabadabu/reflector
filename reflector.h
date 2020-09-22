@@ -20,7 +20,8 @@ namespace Reflector {
   class has_props {
 
   public:
-    std::vector< Ref* > m_props;
+
+    std::vector< Ref > m_props;
 
     // Fallback for last template
     void initProp() { }
@@ -32,8 +33,8 @@ namespace Reflector {
     // Iterate over all props
     template< typename Fn>
     void props(Fn fn) const {
-      for (auto p : m_props)
-        fn(*p);
+      for (auto& p : m_props)
+        fn(p);
     }
 
     // Get the value of a property, null if the prop does not exists
@@ -120,24 +121,25 @@ namespace Reflector {
 
       static ::data user_data;
 
-      if (!user_data.m_registered) {
-        user_data.m_name = name;
-        user_data.m_type = ::resolve<Type>();
-        user_data.m_parent = the_type;
-        user_data.m_registered = true;
-        user_data.m_setter = [](void* owner, const void* new_value) {
-          MainType* typed_owner = reinterpret_cast<MainType*>(owner);
-          const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
-          (*typed_owner).*Member = *typed_new_value;
-        };
-        user_data.m_getter = [](void* owner) -> void* {
-          MainType* typed_owner = reinterpret_cast<MainType*>(owner);
-          return &(typed_owner->*Member);
-        };
-        user_data.initProp(std::forward<Property>(property)...);
-        the_type->m_datas.push_back(&user_data);
-      }
+      assert(!user_data.m_registered || fatal("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
+      user_data.m_name = name;
+      user_data.m_type = ::resolve<Type>();
+      user_data.m_parent = the_type;
+      user_data.m_registered = true;
+      user_data.m_setter = [](void* owner, const void* new_value) {
+        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
+        const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
+        (*typed_owner).*Member = *typed_new_value;
+      };
+      user_data.m_getter = [](void* owner) -> void* {
+        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
+        return &(typed_owner->*Member);
+      };
+      user_data.initProp(std::forward<Property>(property)...);
 
+      assert(the_type->data(name) == nullptr || fatal("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
+
+      the_type->m_datas.push_back(&user_data);
       return *this;
     }
   };
@@ -232,20 +234,20 @@ namespace Reflector {
   void has_props::initProp(Property&& property, Other &&... other)
   {
     // We need to make a copy of the given property to take ownership
-    Ref* r = new Ref;
-    r->m_type = ::resolve<Property>();
-    r->m_addr = new Property(std::move(property));
+    Ref r;
+    r.m_type = ::resolve<Property>();
+    r.m_addr = new Property(std::move(property));
     m_props.push_back(r);
-    printf("Adding property type %s\n", r->type()->name());
+    printf("Adding property type %s\n", r.type()->name());
     initProp(std::forward<Other>(other)...);
   }
 
   template< typename PropType >
   const PropType* has_props::propByType() const {
     const struct type* t = ::resolve<PropType>();
-    for (auto p : m_props) {
-      if (p->type() == t) {
-        return p->as<PropType>();
+    for (auto& p : m_props) {
+      if (p.type() == t) {
+        return p.as<PropType>();
       }
     }
     return nullptr;
