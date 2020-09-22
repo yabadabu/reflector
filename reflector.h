@@ -78,6 +78,7 @@ namespace Reflector {
     const type* m_parent = nullptr;
 
     // Current support is just dummy methods with no args/no return values
+    void* m_raw_invoker = nullptr;
     std::function<void(void* owner)> m_invoker;
   public:
 
@@ -191,6 +192,7 @@ namespace Reflector {
       user_func.m_name = name;
       user_func.m_registered = true;
       user_func.m_parent = the_type;
+      user_func.m_raw_invoker = &Method;
       user_func.m_invoker = [](void* owner) {
         MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
         std::invoke(Method, typed_owner);
