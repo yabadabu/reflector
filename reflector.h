@@ -98,11 +98,19 @@ namespace Reflector {
   // The registry...
   std::vector< type* > all_user_types;
 
+  namespace internal {
+    // --------------------------------------------
+    template< typename UserType >
+    type* resolve() {
+      static type user_type("TypeNameUnknown");
+      return &user_type;
+    };
+  }
+
   // --------------------------------------------
   template< typename UserType >
   type* resolve() {
-    static type user_type("TypeNameUnknown");
-    return &user_type;
+    return internal::resolve< std::decay_t<UserType> >();
   };
 
   // --------------------------------------------
@@ -179,7 +187,7 @@ namespace Reflector {
     template< typename Obj >
     Ref(Obj* obj) :
       m_type(::resolve<Obj>()),
-      m_addr(obj)
+      m_addr((void*)obj)
     {
     }
 

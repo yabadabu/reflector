@@ -23,6 +23,13 @@ void float_from_json(const json& j, const Ref& r) {
   float ival = j.get<float>();
   r.set(ival);
 }
+void string_to_json(json& j, const Ref& r) {
+  j = *r.as<std::string>();
+}
+void string_from_json(const json& j, const Ref& r) {
+  std::string ival = j.get<std::string>();
+  r.set(ival);
+}
 
 // -----------------------------------------------------------------------------------
 #include "named_values.h"
@@ -43,10 +50,41 @@ jsonIO makeEnumIO(const INamedValues* named_values) {
 }
 
 // -----------------------------------------------------------------------------------
+template< typename Container>
+jsonIO makeVectorIO() {
+  jsonIO j;
+  j.to_json = [](json& j, const Ref& r) {
+    const Container& container = *r.as<Container>();
+    j = json::array();
+    size_t idx = 0;
+    for (auto& item : container) {
+      typename Container::const_reference item = container[idx];
+      Ref child(&item);
+      json jitem;
+      toJson(jitem, child);
+      j.push_back(jitem);
+      ++idx;
+    }
+  };
+  j.from_json = [](const json& j, const Ref& r) {
+    Container& container = *(Container*)r.as<Container>();
+    container.clear();
+    container.resize(j.size());
+    for (size_t i = 0; i < j.size(); ++i) {
+      Ref child(&container[i]);
+      fromJson(j[i], child);
+    }
+  };
+  return j;
+}
+
+// -----------------------------------------------------------------------------------
 struct House {
   int life = 1;
-  float score = 2.0f;
+  float size = 2.0f;
 };
+
+typedef std::vector<int> IDs;
 
 struct City {
   House council;
@@ -54,6 +92,9 @@ struct City {
     Big, Medium, Small
   };
   eSize size = eSize::Medium;
+  std::string name;
+  std::vector<House> houses;
+  IDs ids;
 };
 
 void dumpRef(Ref ref) {
@@ -67,7 +108,7 @@ void dumpRef(Ref ref) {
   }
   House* h = ref.as<House>();
   if (h) {
-    printf("It's a house... %d %f\n", h->life, h->score);
+    printf("It's a house... %d %f\n", h->life, h->size);
   }
 }
 
@@ -81,12 +122,21 @@ struct IntRange {
   {}
 };
 
+// -------------------- Helper to declare std::vector<Item> with the json serialzier
+template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
+Factory<UserType>& reflectVector(const char* name, Property &&... property) {
+  static TStr64 vname("std::vector<%s>", name);
+  return reflect<UserType>(vname, makeVectorIO<UserType>(), std::forward<Property>(property)...);
+}
 
 void registerTypes() {
 
   reflect<jsonIO>("jsonIO");
   reflect<float>("f32", jsonIO{ &float_to_json, &float_from_json });
   reflect<int>("int", jsonIO{ &int_to_json, &int_from_json });
+  reflect<std::string>("std::string", jsonIO{ &string_to_json, &string_from_json });
+  reflectVector<House>("House");
+  reflectVector<int>("int");
 
   {
     static NamedValues<City::eSize> values = {
@@ -103,17 +153,27 @@ void registerTypes() {
     ;
 
   reflect<City>("City")
-    .data<&City::council>("council", IntRange(5,15))
-    .data<&City::size>("size");
+    .data<&City::council>("council", IntRange(5, 15))
+    .data<&City::name>("name")
+    .data<&City::houses>("houses")
+    .data<&City::ids>("ids")
+    .data<&City::size>("size")
+    ;
 
   reflect<House>("House")
     .data<&House::life>("Life")
-    .data<&House::score>("Score");
+    .data<&House::size>("Size");
 }
 
 
 void testTypes() {
   City city;
+  city.houses.resize(2);
+  city.houses[0] = House{ 10,20.f };
+  city.houses[1] = House{ 11,21.f };
+  city.ids.emplace_back(99);
+  city.ids.emplace_back(102);
+  
   House house;
   Ref r_house(&house);
   dumpRef(r_house);
@@ -134,6 +194,7 @@ void testTypes() {
   dumpRef(r_house);
 
   city.council = house;
+  city.name = "Barcelona";
 
   json j;
   toJson(j, Ref(&city));
@@ -142,7 +203,7 @@ void testTypes() {
   City city2;
   fromJson(j, Ref(&city2));
   json j2;
-  Ref(&city2).get("council").get("Score").set(4.2f);
+  Ref(&city2).get("council").get("Size").set(4.2f);
   city2.size = City::eSize::Small;
   toJson(j2, Ref(&city2));
   printf("City2; %s\n", j2.dump(2, ' ').c_str());
