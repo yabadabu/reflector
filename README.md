@@ -1,11 +1,11 @@
 === TODO
 
 - members using fn to set
-- base class, derived class
+- base class, derivedtrix class
 - Support for dicts
-- invoke fns?
 - Improve register
 - Release memory
++ invoke super basic fns?
 + Support for std::strings
 + Support for std::vector
 + Check dupes members, duped names

@@ -76,6 +76,8 @@ namespace Reflector {
     const char* m_name = "unknown_func_name";
     bool        m_registered = false;
     const type* m_parent = nullptr;
+
+    // Current support is just dummy methods with no args/no return values
     std::function<void(void* owner)> m_invoker;
   public:
 
