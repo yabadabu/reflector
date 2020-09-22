@@ -24,3 +24,16 @@ int fatal(const char* fmt, ...) {
   (*fatal_handler)(buf);
   return 0;
 }
+
+void dbg(const char* fmt, ...) {
+  if (!dbg_handler)
+    return;
+
+  TStr<4096> buf;
+  va_list argp;
+  va_start(argp, fmt);
+  buf.formatVaList(fmt, argp);
+  va_end(argp);
+
+  (*dbg_handler)(buf);
+}

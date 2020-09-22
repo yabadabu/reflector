@@ -57,7 +57,7 @@ namespace Reflector {
     const type* m_type = nullptr;
     const type* m_parent = nullptr;
     std::function<void(void* owner, const void* new_value)> m_setter;
-    std::function<void* (void* owner)> m_getter;
+    std::function<void*(void* owner)> m_getter;
 
     data() = default;
 
@@ -68,17 +68,36 @@ namespace Reflector {
   };
 
   // ----------------------------------------
+  class func {
+
+    template<typename> friend struct Factory;
+    friend class Ref;
+
+    const char* m_name = "unknown_func_name";
+    bool        m_registered = false;
+    const type* m_parent = nullptr;
+    std::function<void(void* owner)> m_invoker;
+  public:
+
+    const char* name() const { return m_name; }
+    const struct type* parent() const { return m_parent; }
+  };
+
+  // ----------------------------------------
   // Type definition
   struct type : has_props {
+
     const char* m_name = nullptr;
     bool                 m_registered = false;
     std::vector< data* > m_datas;
-    const char* name() const { return m_name; }
+    std::vector< func* > m_funcs;
 
     type(const char* new_name)
       : m_name(new_name)
-    {
-    }
+    { }
+
+  public:
+    const char* name() const { return m_name; }
 
     template< typename Fn >
     void data(Fn fn) const {
@@ -93,6 +112,13 @@ namespace Reflector {
       return nullptr;
     }
 
+    const class func* func(const char* func_name) const {
+      for (auto d : m_funcs)
+        if (strcmp(d->name(), func_name) == 0)
+          return d;
+      return nullptr;
+    }
+
     bool isRegistered() const { return m_registered; }
   };
 
@@ -100,6 +126,7 @@ namespace Reflector {
   // The registry...
   std::vector< type* > all_user_types;
 
+  // Create an internal namespace 
   namespace internal {
     // --------------------------------------------
     template< typename UserType >
@@ -110,6 +137,7 @@ namespace Reflector {
   }
 
   // --------------------------------------------
+  // Forward the call to the ::internal method, but first remove const/volatile,etc, etc
   template< typename UserType >
   type* resolve() {
     return internal::resolve< std::decay_t<UserType> >();
@@ -152,6 +180,25 @@ namespace Reflector {
       the_type->m_datas.push_back(&user_data);
       return *this;
     }
+
+    template< auto Method>
+    Factory<MainType>& func(const char* name) noexcept {
+
+      static ::func user_func;
+      assert(!user_func.m_registered || fatal("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
+      user_func.m_name = name;
+      user_func.m_registered = true;
+      user_func.m_parent = the_type;
+      user_func.m_invoker = [](void* owner) {
+        MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
+        std::invoke(Method, typed_owner);
+      };
+
+      the_type->m_funcs.push_back(&user_func);
+
+      return *this;
+    }
+
   };
 
   template< typename UserType, typename... Property>
@@ -227,6 +274,7 @@ namespace Reflector {
       return true;
     }
 
+    // -----------------------------------------
     Ref get(const char* data_name) const {
       const data* d = type()->data(data_name);
       assert(d);
@@ -241,7 +289,21 @@ namespace Reflector {
       r.m_addr = d->m_getter(m_addr);
       return r;
     }
+
+    // -----------------------------------------
+    void invoke(const char* func_name) const {
+      const func* f = type()->func(func_name);
+      assert(f || fatal( "Function %s is not defined for type %s\n", func_name, type()->name()));
+      invoke(f);
+    }
+
+    void invoke(const func* f) const {
+      assert(f);
+      assert(f->parent() == m_type);
+      f->m_invoker(m_addr);
+    }
   };
+
 
   template<typename Property, typename... Other>
   void has_props::initProp(Property&& property, Other &&... other)

@@ -79,10 +79,20 @@ jsonIO makeVectorIO() {
   return j;
 }
 
+// -------------------- Helper to declare std::vector<Item> with the json serialzier
+template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
+Factory<UserType>& reflectVector(const char* name, Property &&... property) {
+  static TStr64 vname("std::vector<%s>", name);
+  return reflect<UserType>(vname, makeVectorIO<UserType>(), std::forward<Property>(property)...);
+}
+
 // -----------------------------------------------------------------------------------
 struct House {
   int life = 1;
   float size = 2.0f;
+  void render() {
+    dbg("Rendering house %d,%f\n", life, size);
+  }
 };
 
 typedef std::vector<int> IDs;
@@ -96,11 +106,14 @@ struct City {
   std::string name;
   std::vector<House> houses;
   IDs ids;
+  void render() {
+    dbg("Rendering city %s\n", name.c_str());
+  }
 };
 
 void dumpRef(Ref ref) {
   printf("Ref has type %s\n", ref.type()->name());
-  ref.type()->data([&](const data* d) {
+  ref.type()->data([](const data* d) {
     printf("  Has member %s (%s)\n", d->name(), d->type()->name());
     });
   City* c = ref.as<City>();
@@ -123,13 +136,7 @@ struct IntRange {
   {}
 };
 
-// -------------------- Helper to declare std::vector<Item> with the json serialzier
-template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
-Factory<UserType>& reflectVector(const char* name, Property &&... property) {
-  static TStr64 vname("std::vector<%s>", name);
-  return reflect<UserType>(vname, makeVectorIO<UserType>(), std::forward<Property>(property)...);
-}
-
+// -----------------------------------------------------------------------------------
 void registerTypes() {
 
   reflect<jsonIO>("jsonIO");
@@ -159,14 +166,17 @@ void registerTypes() {
     .data<&City::houses>("houses")
     .data<&City::ids>("ids")
     .data<&City::size>("size")
+    .func<&City::render>("Render")
     ;
 
   reflect<House>("House")
     .data<&House::life>("Life")
-    .data<&House::size>("Size");
+    .data<&House::size>("Size")
+    .func<&House::render>("Render")
+    ;
 }
 
-
+// -----------------------------------------------------------------------------------
 void testTypes() {
   City city;
   city.houses.resize(2);
@@ -189,6 +199,9 @@ void testTypes() {
   assert(house.life == 4);
   int new_life = *r_life.as<int>();
   assert(new_life == 4);
+
+  r_house.invoke("Render");
+  Ref(&city).invoke("Render");
 
   assert(resolve<double>());
 
