@@ -169,12 +169,3 @@ int main()
   dumpTypes();
   testTypes();
 }
-
-// - members using fn to set
-// + confirm json of enums can work
-// - base class, derived class
-// - Support for static arrays, dynamic arrays
-// - Support for dicts
-// - invoke fns?
-// + Check dupes members, duped names
-// - Release memory

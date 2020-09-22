@@ -9,4 +9,7 @@
     <ClInclude Include="utils.h" />
     <ClInclude Include="strs.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" />
+  </ItemGroup>
 </Project>
