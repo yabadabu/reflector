@@ -2,12 +2,14 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Reflection.cpp" />
+    <ClCompile Include="reflector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />
     <ClInclude Include="reflector.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="strs.h" />
+    <ClInclude Include="reflector_json.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

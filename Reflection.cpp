@@ -3,33 +3,33 @@
 // -----------------------------------------------------------------------------------
 #include <windows.h>
 
-#include "nlohmann/json.hpp"
-using nlohmann::json;
-
 #include "reflector.h"
+#include "reflector_json.h"
 using namespace Reflector;
 
-// -----------------------------------------------------------------------------------
-void int_to_json(json& jout, const Ref& r) {
-  jout = *r.as<int>();
+#include "utils.h"
+
+void dumpProps(const PropsContainer& props_container) {
+  props_container.props([](const Ref& r) {
+    json j;
+    toJson(j, r);
+    printf("    Prop: %s %s\n", r.type()->name(), j.dump().c_str());
+    });
 }
-void int_from_json(const json& j, const Ref& r) {
-  int ival = j.get<int>();
-  r.set(ival);
+
+void dumpType(const struct type* t) {
+  printf("Type:%s\n", t->name());
+  dumpProps(*t);
+  t->data([&](const class data* d) {
+    assert(d->parent() && d->parent() == t);
+    printf("  %s (%s)\n", d->name(), d->type()->name());
+    dumpProps(*d);
+    });
 }
-void float_to_json(json& jout, const Ref& r) {
-  jout = *r.as<float>();
-}
-void float_from_json(const json& j, const Ref& r) {
-  float ival = j.get<float>();
-  r.set(ival);
-}
-void string_to_json(json& j, const Ref& r) {
-  j = *r.as<std::string>();
-}
-void string_from_json(const json& j, const Ref& r) {
-  std::string ival = j.get<std::string>();
-  r.set(ival);
+
+void dumpTypes() {
+  for (auto t : all_user_types)
+    dumpType(t);
 }
 
 // -----------------------------------------------------------------------------------
@@ -48,42 +48,6 @@ jsonIO makeEnumIO(const INamedValues* named_values) {
     *iaddr = ival;
   };
   return j;
-}
-
-// -----------------------------------------------------------------------------------
-template< typename Container>
-jsonIO makeVectorIO() {
-  jsonIO j;
-  j.to_json = [](json& j, const Ref& r) {
-    const Container& container = *r.as<Container>();
-    j = json::array();
-    size_t idx = 0;
-    for (auto& item : container) {
-      typename Container::const_reference item = container[idx];
-      Ref child(&item);
-      json jitem;
-      toJson(jitem, child);
-      j.push_back(jitem);
-      ++idx;
-    }
-  };
-  j.from_json = [](const json& j, const Ref& r) {
-    Container& container = *(Container*)r.as<Container>();
-    container.clear();
-    container.resize(j.size());
-    for (size_t i = 0; i < j.size(); ++i) {
-      Ref child(&container[i]);
-      fromJson(j[i], child);
-    }
-  };
-  return j;
-}
-
-// -------------------- Helper to declare std::vector<Item> with the json serialzier
-template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
-Factory<UserType>& reflectVector(const char* name, Property &&... property) {
-  static TStr64 vname("std::vector<%s>", name);
-  return reflect<UserType>(vname, makeVectorIO<UserType>(), std::forward<Property>(property)...);
 }
 
 // -----------------------------------------------------------------------------------
@@ -116,11 +80,11 @@ void dumpRef(Ref ref) {
   ref.type()->data([](const data* d) {
     printf("  Has member %s (%s)\n", d->name(), d->type()->name());
     });
-  City* c = ref.as<City>();
+  City* c = ref.tryAs<City>();
   if (c) {
     printf("It's not a city...\n");
   }
-  House* h = ref.as<House>();
+  House* h = ref.tryAs<House>();
   if (h) {
     printf("It's a house... %d %f\n", h->life, h->size);
   }
@@ -139,10 +103,7 @@ struct IntRange {
 // -----------------------------------------------------------------------------------
 void registerTypes() {
 
-  reflect<jsonIO>("jsonIO");
-  reflect<float>("f32", jsonIO{ &float_to_json, &float_from_json });
-  reflect<int>("int", jsonIO{ &int_to_json, &int_from_json });
-  reflect<std::string>("std::string", jsonIO{ &string_to_json, &string_from_json });
+  registerCommonTypes();
   reflectVector<House>("House");
   reflectVector<int>("int");
 

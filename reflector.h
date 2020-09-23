@@ -4,7 +4,8 @@
 #include <cassert>
 #include <functional>
 #include <unordered_map>
-#include "utils.h"
+
+int fatal(const char* fmt, ...);
 
 namespace Reflector {
 
@@ -16,8 +17,9 @@ namespace Reflector {
   type* resolve();
 
   // ----------------------------------------
-  // A bag of owned properties. 
-  class has_props {
+  // A bag of owned properties. Stores an array
+  // of Refs, which is a type + value addr
+  class PropsContainer {
 
   protected:
 
@@ -46,7 +48,7 @@ namespace Reflector {
 
   // ----------------------------------------
   // Member definition
-  class data : public has_props {
+  class data : public PropsContainer {
 
     template<typename> friend struct Factory;
     friend class Ref;
@@ -57,7 +59,7 @@ namespace Reflector {
     const type* m_type = nullptr;
     const type* m_parent = nullptr;
     std::function<void(void* owner, const void* new_value)> m_setter;
-    std::function<void*(void* owner)> m_getter;
+    std::function<void* (void* owner)> m_getter;
 
     data() = default;
 
@@ -88,7 +90,7 @@ namespace Reflector {
 
   // ----------------------------------------
   // Type definition
-  struct type : has_props {
+  struct type : public PropsContainer {
 
     const char* m_name = nullptr;
     bool                 m_registered = false;
@@ -126,12 +128,12 @@ namespace Reflector {
   };
 
   // --------------------------------------------
-  // The registry...
-  std::vector< type* > all_user_types;
+  // The global registry...
+  extern std::vector< type* > all_user_types;
 
-  // Create an internal namespace 
+  // --------------------------------------------
+  // Create an internal namespace to hide some details
   namespace internal {
-    // --------------------------------------------
     template< typename UserType >
     type* resolve() {
       static type user_type("TypeNameUnknown");
@@ -156,8 +158,8 @@ namespace Reflector {
 
       assert(the_type);
 
-      // Member is:    int Factory::*
-      // decltype(MainType().*Member) returns int&&
+      // Member is:                        int Factory::*
+      // decltype(MainType().*Member) is:  int&&
       typedef typename std::remove_reference_t<decltype(MainType().*Member)> Type;
 
       static ::data user_data;
@@ -170,7 +172,7 @@ namespace Reflector {
       user_data.m_setter = [](void* owner, const void* new_value) {
         MainType* typed_owner = reinterpret_cast<MainType*>(owner);
         const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
-        (*typed_owner).*Member = *typed_new_value;
+        typed_owner->*Member = *typed_new_value;
       };
       user_data.m_getter = [](void* owner) -> void* {
         MainType* typed_owner = reinterpret_cast<MainType*>(owner);
@@ -205,11 +207,12 @@ namespace Reflector {
 
   };
 
+  // Global function entry to start defining new types
   template< typename UserType, typename... Property>
   Factory<UserType>& reflect(const char* name, Property &&... property) noexcept {
     type* user_type = resolve<UserType>();
 
-    assert(!user_type->isRegistered() || fatal( "Type %s is already defined\n", name));
+    assert(!user_type->isRegistered() || fatal("Type %s is already defined\n", name));
 
     user_type->m_name = name;
     user_type->m_registered = true;
@@ -221,9 +224,9 @@ namespace Reflector {
   }
 
   // -------------------------------------------
-  // A Ref is a pair of address + type_info
+  // A Ref is a pair of pointers: address + type_info
   // The addr is not owned by the Ref, we are just referencing it.
-  // It should be cheat to copy/move refs
+  // It should be cheap to copy/move refs
   class Ref {
   public:
     const type* m_type = nullptr;
@@ -250,20 +253,34 @@ namespace Reflector {
     inline const type* type() const { return m_type; }
     const void* rawAddr() const { return m_addr; }
 
+    // Will return null in case the type is not valid
     template< typename Obj>
-    const Obj* as() const {
+    const Obj* tryAs() const {
       return ::resolve<Obj>() == m_type ? reinterpret_cast<const Obj*>(m_addr) : nullptr;
     }
 
     template< typename Obj>
-    Obj* as() {
+    Obj* tryAs() {
       return ::resolve<Obj>() == m_type ? reinterpret_cast<Obj*>(m_addr) : nullptr;
+    }
+
+    // Will assert
+    template< typename Obj>
+    const Obj* as() const {
+      assert(resolve<Obj>() == m_type || fatal("Failed runtime conversion from type is %s to requested type const %s\n", m_type->name(), resolve<Obj>()->name()));
+      return reinterpret_cast<const Obj*>(m_addr);
+    }
+
+    template< typename Obj>
+    Obj* as() {
+      assert(resolve<Obj>() == m_type || fatal("Failed runtime conversion from type is %s to requested type %s\n", m_type->name(), resolve<Obj>()->name()));
+      return reinterpret_cast<Obj*>(m_addr);
     }
 
     template< typename Value >
     bool set(const Value& new_value) const {
       const Value* addr = as<Value>();
-      assert(addr);
+      assert(addr || fatal("Can't set new value, ref points to null object\n"));
       // Not using the setter!! but we don't have the data accessor.
       *const_cast<Value*>(addr) = new_value;
       return true;
@@ -297,7 +314,7 @@ namespace Reflector {
     // -----------------------------------------
     void invoke(const char* func_name) const {
       const func* f = type()->func(func_name);
-      assert(f || fatal( "Function %s is not defined for type %s\n", func_name, type()->name()));
+      assert(f || fatal("Function %s is not defined for type %s\n", func_name, type()->name()));
       invoke(f);
     }
 
@@ -308,13 +325,11 @@ namespace Reflector {
     }
   };
 
-
   template<typename Property, typename... Other>
-  void has_props::initProp(Property&& property, Other &&... other)
-  {
+  void PropsContainer::initProp(Property&& property, Other &&... other) {
     // We need to make a copy of the given property to take ownership
     Ref r;
-    r.m_type = ::resolve<Property>();
+    r.m_type = resolve<Property>();
     r.m_addr = new Property(std::move(property));
     m_props.push_back(r);
     printf("Adding property type %s\n", r.type()->name());
@@ -322,8 +337,8 @@ namespace Reflector {
   }
 
   template< typename PropType >
-  const PropType* has_props::propByType() const {
-    const struct type* t = ::resolve<PropType>();
+  const PropType* PropsContainer::propByType() const {
+    const struct type* t = resolve<PropType>();
     for (auto& p : m_props) {
       if (p.type() == t) {
         return p.as<PropType>();
@@ -332,74 +347,5 @@ namespace Reflector {
     return nullptr;
   }
 
-  // -----------------------------------------------------------------------------------
-  // Json IO
-  // This PropType allow to customize how any type is serialized to/from json
-  struct jsonIO {
-    std::function<void(json& j, const Ref& r)> to_json;
-    std::function<void(const json& j, const Ref& r)> from_json;
-  };
-
-  void toJson(json& jout, const Ref& r) {
-    const type* t = r.type();
-    assert(t);
-    const jsonIO* jio = t->propByType<jsonIO>();
-    if (jio) {
-      jio->to_json(jout, r);
-    }
-    else {
-      // Default behaviour is to iterate over all props and return an object
-      jout = json();
-      t->data([&](const data* d) {
-        const char* key = d->name();
-        json j;
-        toJson(j, r.get(d));
-        if (!jout.is_object())
-          jout = json::object();
-        jout[key] = std::move(j);
-        });
-    }
-  }
-
-  void fromJson(const json& j, const Ref& r) {
-    const type* t = r.type();
-    assert(t);
-    const jsonIO* jio = t->propByType<jsonIO>();
-    if (jio) {
-      jio->from_json(j, r);
-    }
-    else {
-      t->data([&](const data* d) {
-        const char* key = d->name();
-        if (!j.count(key))
-          return;
-        const json& jv = j[key];
-        fromJson(jv, r.get(d));
-        });
-    }
-  }
-
-  void dumpProps(const has_props& props_container) {
-    props_container.props([](const Ref& r) {
-      json j;
-      toJson(j, r);
-      printf("    Prop: %s %s\n", r.type()->name(), j.dump().c_str());
-      });
-  }
-
-  void dumpType(const struct type* t) {
-    printf("Type:%s\n", t->name());
-    dumpProps(*t);
-    t->data([&](const class data* d) {
-      assert(d->parent() && d->parent() == t);
-      printf("  %s (%s)\n", d->name(), d->type()->name());
-      dumpProps(*d);
-      });
-  }
-
-  void dumpTypes() {
-    for (auto t : all_user_types)
-      dumpType(t);
-  }
 
 }
