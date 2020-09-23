@@ -188,7 +188,7 @@ namespace Reflector {
 
       assert(!user_data.m_registered || REFLECTOR_ERROR("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
       user_data.m_name = name;
-      user_data.m_type = ::resolve<Type>();
+      user_data.m_type = resolve<Type>();
       user_data.m_parent = the_type;
       user_data.m_registered = true;
       user_data.m_setter = [](void* owner, const void* new_value) {
@@ -264,7 +264,7 @@ namespace Reflector {
 
     template< typename UserType >
     Ref(UserType* obj) :
-      m_type(::resolve<UserType>()),
+      m_type(resolve<UserType>()),
       m_addr((void*)obj)
     {
     }
@@ -275,12 +275,12 @@ namespace Reflector {
     // Will return null in case the type is not valid
     template< typename UserType>
     const UserType* tryAs() const {
-      return ::resolve<UserType>() == m_type ? reinterpret_cast<const UserType*>(m_addr) : nullptr;
+      return resolve<UserType>() == m_type ? reinterpret_cast<const UserType*>(m_addr) : nullptr;
     }
 
     template< typename UserType>
     UserType* tryAs() {
-      return ::resolve<UserType>() == m_type ? reinterpret_cast<UserType*>(m_addr) : nullptr;
+      return resolve<UserType>() == m_type ? reinterpret_cast<UserType*>(m_addr) : nullptr;
     }
 
     // Will assert
