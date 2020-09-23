@@ -11,9 +11,9 @@ extern int REFLECTOR_ERROR(const char* fmt, ...);
 
 namespace Reflector {
 
-  struct Type;
+  class Type;
+  class Data;
   class Ref;
-  class data;
 
   template< typename UserType >
   Type* resolve();
@@ -55,7 +55,7 @@ namespace Reflector {
     template<typename> friend struct Factory;
     friend class Ref;
 
-    friend struct Type;
+    friend class Type;
     const char* m_name = "unknown_data_name";
     bool        m_registered = false;
     const Type* m_type = nullptr;
@@ -67,9 +67,9 @@ namespace Reflector {
     Data() = default;
 
   public:
-    const char* name() const { return m_name; }
-    const struct Type* parent() const { return m_parent; }
-    const struct Type* type() const { return m_type; }
+    inline const char* name()   const { return m_name; }
+    inline const Type* parent() const { return m_parent; }
+    inline const Type* type()   const { return m_type; }
   };
 
   // ----------------------------------------
@@ -87,26 +87,30 @@ namespace Reflector {
 
   public:
 
-    const char* name() const { return m_name; }
-    const struct Type* parent() const { return m_parent; }
+    inline const char* name()   const { return m_name; }
+    inline const Type* parent() const { return m_parent; }
   };
 
   // ----------------------------------------
   // Type definition
-  struct Type : public PropsContainer {
+  class Type : public PropsContainer {
 
-    const char* m_name = nullptr;
+    template<typename> friend struct Factory;
+    template<typename UserType, typename... Property>
+    friend Factory<UserType>& reflect(const char* name, Property &&... property) noexcept;
+
+    const char*          m_name = nullptr;
     bool                 m_registered = false;
     std::vector< Data* > m_datas;
     std::vector< Func* > m_funcs;
+
+  public:
 
     Type(const char* new_name)
       : m_name(new_name)
     { }
 
-  public:
-
-    const char* name() const { return m_name; }
+    inline const char* name() const { return m_name; }
 
     template< typename Fn >
     void data(Fn fn) const {
@@ -128,16 +132,29 @@ namespace Reflector {
       return nullptr;
     }
 
-    bool isRegistered() const { return m_registered; }
   };
 
   // --------------------------------------------
   // The global registry...
-  extern std::vector< Type* > all_user_types;
+  namespace Register {
 
+    void addType(Type* new_type);
+    void delType(Type* new_type);
+
+    namespace details {
+      extern std::vector< Type* > all_user_types;
+    }
+
+    template<typename Fn>
+    void types(Fn fn) {
+      for (auto t : details::all_user_types)
+        fn(t);
+    }
+  };
+  
   // --------------------------------------------
   // Create an internal namespace to hide some details
-  namespace internal {
+  namespace details {
     template< typename UserType >
     Type* resolve() {
       static Type user_type("TypeNameUnknown");
@@ -146,10 +163,11 @@ namespace Reflector {
   }
 
   // --------------------------------------------
-  // Forward the call to the ::internal method, but first remove const/volatile,etc, etc
+  // Forward the call to the ::details method, but first remove const/volatile,etc, etc
+  // so 'const int' is the same type as 'int'
   template< typename UserType >
   Type* resolve() {
-    return internal::resolve< std::decay_t<UserType> >();
+    return details::resolve< std::decay_t<UserType> >();
   };
 
   // --------------------------------------------
@@ -215,12 +233,12 @@ namespace Reflector {
   Factory<UserType>& reflect(const char* name, Property &&... property) noexcept {
     Type* user_type = resolve<UserType>();
 
-    assert(!user_type->isRegistered() || REFLECTOR_ERROR("Type %s is already defined\n", name));
+    assert(!user_type->m_registered || REFLECTOR_ERROR("Type %s is already defined\n", name));
 
     user_type->m_name = name;
     user_type->m_registered = true;
     user_type->initProp(std::forward<Property>(property)...);
-    all_user_types.push_back(user_type);
+    Register::addType(user_type);
 
     static Factory<UserType> f{ user_type };
     return f;
@@ -231,20 +249,18 @@ namespace Reflector {
   // The addr is not owned by the Ref, we are just referencing it.
   // It should be cheap to copy/move refs
   class Ref {
-  public:
+
+    template<typename Property, typename... Other>
+    friend void PropsContainer::initProp(Property&& property, Other &&... other);
+
     const Type* m_type = nullptr;
-    void* m_addr = nullptr;
+          void* m_addr = nullptr;
 
   public:
 
     inline bool isValid() const { return m_type != nullptr && m_addr != nullptr; }
 
     Ref() = default;
-
-    Ref(const Ref& other) = default;
-    Ref(Ref&& other) = default;
-
-    Ref(const Ref* other) = delete;
 
     template< typename UserType >
     Ref(UserType* obj) :
@@ -254,7 +270,7 @@ namespace Reflector {
     }
 
     inline const Type* type() const { return m_type; }
-    const void* rawAddr() const { return m_addr; }
+    inline const void* rawAddr() const { return m_addr; }
 
     // Will return null in case the type is not valid
     template< typename UserType>
@@ -269,33 +285,31 @@ namespace Reflector {
 
     // Will assert
     template< typename UserType>
-    const UserType* as() const {
+    inline const UserType* as() const {
       assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type const %s\n", m_type->name(), resolve<UserType>()->name()));
       return reinterpret_cast<const UserType*>(m_addr);
     }
 
     template< typename UserType>
-    UserType* as() {
+    inline UserType* as() {
       assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type %s\n", m_type->name(), resolve<UserType>()->name()));
       return reinterpret_cast<UserType*>(m_addr);
     }
 
     template< typename Value >
-    bool set(const Value& new_value) const {
+    void set(const Value& new_value) const {
       const Value* addr = as<Value>();
       assert(addr || REFLECTOR_ERROR("Can't set new value, Ref points to null object\n"));
       // Not using the setter!! but we don't have the data accessor.
       *const_cast<Value*>(addr) = new_value;
-      return true;
     }
 
     template< typename Value >
-    bool set(const Data* d, const Value&& value) const {
+    void set(const Data* d, const Value&& value) const {
       assert(d || REFLECTOR_ERROR("Can't set new value. Invalid Data access object\n"));
       assert(d->parent() == m_type || REFLECTOR_ERROR("Can't set new value, Data %s is not part of current type %s, it's from type %s\n", d->name(), type()->name(), d->parent()->name()));
       assert(m_addr || REFLECTOR_ERROR("Can't set new value. Ref points to null object\n"));
       d->m_setter(m_addr, &value);
-      return true;
     }
 
     // -----------------------------------------
@@ -341,11 +355,10 @@ namespace Reflector {
 
   template< typename PropType >
   const PropType* PropsContainer::propByType() const {
-    const struct Type* t = resolve<PropType>();
+    const Type* t = resolve<PropType>();
     for (auto& p : m_props) {
-      if (p.type() == t) {
+      if (p.type() == t)
         return p.as<PropType>();
-      }
     }
     return nullptr;
   }

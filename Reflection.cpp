@@ -15,7 +15,7 @@ void dumpProps(const PropsContainer& props_container) {
     });
 }
 
-void dumpType(const struct Type* t) {
+void dumpType(const Type* t) {
   dbg("Type:%s\n", t->name());
   dumpProps(*t);
   t->data([&](const Data* d) {
@@ -26,8 +26,9 @@ void dumpType(const struct Type* t) {
 }
 
 void dumpTypes() {
-  for (auto t : all_user_types)
-    dumpType(t);
+  Register::types([](const Type* t) {
+    dumpType(t); 
+    });
 }
 
 // -----------------------------------------------------------------------------------

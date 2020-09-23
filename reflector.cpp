@@ -2,7 +2,25 @@
 
 namespace Reflector {
 
-  std::vector< Type* > all_user_types;
+  namespace Register {
+
+    namespace details {
+      std::vector< Type* > all_user_types;
+    }
+
+    void addType(Type* t) {
+      assert(t);
+      details::all_user_types.push_back(t);
+    }
+
+    void delType(Type* t) {
+      assert(t);
+      auto it = std::find(details::all_user_types.begin(), details::all_user_types.end(), t);
+      assert(it != details::all_user_types.end());
+      details::all_user_types.erase(it);
+    }
+
+  }
 
   // ---------------------------------------------------------
   void toJson(json& jout, const Ref& r) {
