@@ -1,28 +1,26 @@
 // Reflection.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 // -----------------------------------------------------------------------------------
-#include <windows.h>
-
 #include "reflector.h"
-#include "reflector_json.h"
 using namespace Reflector;
 
+#include <windows.h>
 #include "utils.h"
 
 void dumpProps(const PropsContainer& props_container) {
   props_container.props([](const Ref& r) {
     json j;
     toJson(j, r);
-    printf("    Prop: %s %s\n", r.type()->name(), j.dump().c_str());
+    dbg("    Prop: %s %s\n", r.type()->name(), j.dump().c_str());
     });
 }
 
-void dumpType(const struct type* t) {
-  printf("Type:%s\n", t->name());
+void dumpType(const struct Type* t) {
+  dbg("Type:%s\n", t->name());
   dumpProps(*t);
-  t->data([&](const class data* d) {
+  t->data([&](const Data* d) {
     assert(d->parent() && d->parent() == t);
-    printf("  %s (%s)\n", d->name(), d->type()->name());
+    dbg("  %s (%s)\n", d->name(), d->type()->name());
     dumpProps(*d);
     });
 }
@@ -76,18 +74,16 @@ struct City {
 };
 
 void dumpRef(Ref ref) {
-  printf("Ref has type %s\n", ref.type()->name());
-  ref.type()->data([](const data* d) {
-    printf("  Has member %s (%s)\n", d->name(), d->type()->name());
+  dbg("Ref has type %s\n", ref.type()->name());
+  ref.type()->data([](const Data* d) {
+    dbg("  Has member %s (%s)\n", d->name(), d->type()->name());
     });
   City* c = ref.tryAs<City>();
-  if (c) {
-    printf("It's not a city...\n");
-  }
+  if (c) 
+    dbg("It's not a city...\n");
   House* h = ref.tryAs<House>();
-  if (h) {
-    printf("It's a house... %d %f\n", h->life, h->size);
-  }
+  if (h) 
+    dbg("It's a house... %d %f\n", h->life, h->size);
 }
 
 struct IntRange {
@@ -150,7 +146,7 @@ void testTypes() {
   Ref r_house(&house);
   dumpRef(r_house);
   house.life = 10;
-  const data* d_life = r_house.type()->data("Life");
+  const Data* d_life = r_house.type()->data("Life");
   assert(d_life);
   Ref r_life = r_house.get(d_life);
   int prev_life = *r_life.as<int>();
@@ -173,7 +169,7 @@ void testTypes() {
 
   json j;
   toJson(j, Ref(&city));
-  printf("City: %s\n", j.dump(2, ' ').c_str());
+  dbg("City: %s\n", j.dump(2, ' ').c_str());
 
   City city2;
   fromJson(j, Ref(&city2));
@@ -181,7 +177,7 @@ void testTypes() {
   Ref(&city2).get("council").get("Size").set(4.2f);
   city2.size = City::eSize::Small;
   toJson(j2, Ref(&city2));
-  printf("City2; %s\n", j2.dump(2, ' ').c_str());
+  dbg("City2; %s\n", j2.dump(2, ' ').c_str());
 }
 
 void myDbgHandler(const char* txt) {

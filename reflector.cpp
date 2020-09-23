@@ -1,13 +1,12 @@
 #include "reflector.h"
-#include "reflector_json.h"
 
 namespace Reflector {
 
-  std::vector< type* > all_user_types;
+  std::vector< Type* > all_user_types;
 
   // ---------------------------------------------------------
   void toJson(json& jout, const Ref& r) {
-    const type* t = r.type();
+    const Type* t = r.type();
     assert(t);
     const jsonIO* jio = t->propByType<jsonIO>();
     if (jio) {
@@ -16,7 +15,7 @@ namespace Reflector {
     else {
       // Default behaviour is to iterate over all props and return an object
       jout = json();
-      t->data([&](const data* d) {
+      t->data([&](const Data* d) {
         const char* key = d->name();
         json j;
         toJson(j, r.get(d));
@@ -28,14 +27,14 @@ namespace Reflector {
   }
 
   void fromJson(const json& j, const Ref& r) {
-    const type* t = r.type();
+    const Type* t = r.type();
     assert(t);
     const jsonIO* jio = t->propByType<jsonIO>();
     if (jio) {
       jio->from_json(j, r);
     }
     else {
-      t->data([&](const data* d) {
+      t->data([&](const Data* d) {
         const char* key = d->name();
         if (!j.count(key))
           return;

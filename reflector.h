@@ -1,24 +1,26 @@
 #pragma once
 
-#include <type_traits>
 #include <cassert>
 #include <functional>
-#include <unordered_map>
 
-int fatal(const char* fmt, ...);
+#ifndef REFLECTOR_ERROR
+#define REFLECTOR_ERROR fatal
+#endif
+
+extern int REFLECTOR_ERROR(const char* fmt, ...);
 
 namespace Reflector {
 
-  struct type;
+  struct Type;
   class Ref;
   class data;
 
   template< typename UserType >
-  type* resolve();
+  Type* resolve();
 
   // ----------------------------------------
   // A bag of owned properties. Stores an array
-  // of Refs, which is a type + value addr
+  // of Refs, which is a Type + value addr
   class PropsContainer {
 
   protected:
@@ -48,60 +50,62 @@ namespace Reflector {
 
   // ----------------------------------------
   // Member definition
-  class data : public PropsContainer {
+  class Data : public PropsContainer {
 
     template<typename> friend struct Factory;
     friend class Ref;
 
-    friend struct type;
+    friend struct Type;
     const char* m_name = "unknown_data_name";
     bool        m_registered = false;
-    const type* m_type = nullptr;
-    const type* m_parent = nullptr;
-    std::function<void(void* owner, const void* new_value)> m_setter;
-    std::function<void* (void* owner)> m_getter;
+    const Type* m_type = nullptr;
+    const Type* m_parent = nullptr;
 
-    data() = default;
+    std::function<void(void* owner, const void* new_value)> m_setter;
+    std::function<void* (void* owner)>                      m_getter;
+
+    Data() = default;
 
   public:
     const char* name() const { return m_name; }
-    const struct type* parent() const { return m_parent; }
-    const struct type* type() const { return m_type; }
+    const struct Type* parent() const { return m_parent; }
+    const struct Type* type() const { return m_type; }
   };
 
   // ----------------------------------------
-  class func {
+  class Func {
 
     template<typename> friend struct Factory;
     friend class Ref;
 
     const char* m_name = "unknown_func_name";
     bool        m_registered = false;
-    const type* m_parent = nullptr;
+    const Type* m_parent = nullptr;
 
     // Current support is just dummy methods with no args/no return values
-    void* m_raw_invoker = nullptr;
     std::function<void(void* owner)> m_invoker;
+
   public:
 
     const char* name() const { return m_name; }
-    const struct type* parent() const { return m_parent; }
+    const struct Type* parent() const { return m_parent; }
   };
 
   // ----------------------------------------
   // Type definition
-  struct type : public PropsContainer {
+  struct Type : public PropsContainer {
 
     const char* m_name = nullptr;
     bool                 m_registered = false;
-    std::vector< data* > m_datas;
-    std::vector< func* > m_funcs;
+    std::vector< Data* > m_datas;
+    std::vector< Func* > m_funcs;
 
-    type(const char* new_name)
+    Type(const char* new_name)
       : m_name(new_name)
     { }
 
   public:
+
     const char* name() const { return m_name; }
 
     template< typename Fn >
@@ -110,14 +114,14 @@ namespace Reflector {
         fn(d);
     }
 
-    const class data* data(const char* data_name) const {
+    const Data* data(const char* data_name) const {
       for (auto d : m_datas)
         if (strcmp(d->name(), data_name) == 0)
           return d;
       return nullptr;
     }
 
-    const class func* func(const char* func_name) const {
+    const Func* func(const char* func_name) const {
       for (auto d : m_funcs)
         if (strcmp(d->name(), func_name) == 0)
           return d;
@@ -129,14 +133,14 @@ namespace Reflector {
 
   // --------------------------------------------
   // The global registry...
-  extern std::vector< type* > all_user_types;
+  extern std::vector< Type* > all_user_types;
 
   // --------------------------------------------
   // Create an internal namespace to hide some details
   namespace internal {
     template< typename UserType >
-    type* resolve() {
-      static type user_type("TypeNameUnknown");
+    Type* resolve() {
+      static Type user_type("TypeNameUnknown");
       return &user_type;
     };
   }
@@ -144,14 +148,14 @@ namespace Reflector {
   // --------------------------------------------
   // Forward the call to the ::internal method, but first remove const/volatile,etc, etc
   template< typename UserType >
-  type* resolve() {
+  Type* resolve() {
     return internal::resolve< std::decay_t<UserType> >();
   };
 
   // --------------------------------------------
   template< typename MainType >
   struct Factory {
-    type* the_type = nullptr;
+    Type* the_type = nullptr;
 
     template< auto Member, typename... Property>
     Factory<MainType>& data(const char* name, Property &&... property) noexcept {
@@ -162,9 +166,9 @@ namespace Reflector {
       // decltype(MainType().*Member) is:  int&&
       typedef typename std::remove_reference_t<decltype(MainType().*Member)> Type;
 
-      static ::data user_data;
+      static Data user_data;
 
-      assert(!user_data.m_registered || fatal("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
+      assert(!user_data.m_registered || REFLECTOR_ERROR("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
       user_data.m_name = name;
       user_data.m_type = ::resolve<Type>();
       user_data.m_parent = the_type;
@@ -180,7 +184,7 @@ namespace Reflector {
       };
       user_data.initProp(std::forward<Property>(property)...);
 
-      assert(the_type->data(name) == nullptr || fatal("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
+      assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
 
       the_type->m_datas.push_back(&user_data);
       return *this;
@@ -189,12 +193,11 @@ namespace Reflector {
     template< auto Method>
     Factory<MainType>& func(const char* name) noexcept {
 
-      static ::func user_func;
-      assert(!user_func.m_registered || fatal("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
+      static Func user_func;
+      assert(!user_func.m_registered || REFLECTOR_ERROR("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
       user_func.m_name = name;
       user_func.m_registered = true;
       user_func.m_parent = the_type;
-      user_func.m_raw_invoker = &Method;
       user_func.m_invoker = [](void* owner) {
         MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
         std::invoke(Method, typed_owner);
@@ -210,9 +213,9 @@ namespace Reflector {
   // Global function entry to start defining new types
   template< typename UserType, typename... Property>
   Factory<UserType>& reflect(const char* name, Property &&... property) noexcept {
-    type* user_type = resolve<UserType>();
+    Type* user_type = resolve<UserType>();
 
-    assert(!user_type->isRegistered() || fatal("Type %s is already defined\n", name));
+    assert(!user_type->isRegistered() || REFLECTOR_ERROR("Type %s is already defined\n", name));
 
     user_type->m_name = name;
     user_type->m_registered = true;
@@ -229,7 +232,7 @@ namespace Reflector {
   // It should be cheap to copy/move refs
   class Ref {
   public:
-    const type* m_type = nullptr;
+    const Type* m_type = nullptr;
     void* m_addr = nullptr;
 
   public:
@@ -243,66 +246,67 @@ namespace Reflector {
 
     Ref(const Ref* other) = delete;
 
-    template< typename Obj >
-    Ref(Obj* obj) :
-      m_type(::resolve<Obj>()),
+    template< typename UserType >
+    Ref(UserType* obj) :
+      m_type(::resolve<UserType>()),
       m_addr((void*)obj)
     {
     }
 
-    inline const type* type() const { return m_type; }
+    inline const Type* type() const { return m_type; }
     const void* rawAddr() const { return m_addr; }
 
     // Will return null in case the type is not valid
-    template< typename Obj>
-    const Obj* tryAs() const {
-      return ::resolve<Obj>() == m_type ? reinterpret_cast<const Obj*>(m_addr) : nullptr;
+    template< typename UserType>
+    const UserType* tryAs() const {
+      return ::resolve<UserType>() == m_type ? reinterpret_cast<const UserType*>(m_addr) : nullptr;
     }
 
-    template< typename Obj>
-    Obj* tryAs() {
-      return ::resolve<Obj>() == m_type ? reinterpret_cast<Obj*>(m_addr) : nullptr;
+    template< typename UserType>
+    UserType* tryAs() {
+      return ::resolve<UserType>() == m_type ? reinterpret_cast<UserType*>(m_addr) : nullptr;
     }
 
     // Will assert
-    template< typename Obj>
-    const Obj* as() const {
-      assert(resolve<Obj>() == m_type || fatal("Failed runtime conversion from type is %s to requested type const %s\n", m_type->name(), resolve<Obj>()->name()));
-      return reinterpret_cast<const Obj*>(m_addr);
+    template< typename UserType>
+    const UserType* as() const {
+      assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type const %s\n", m_type->name(), resolve<UserType>()->name()));
+      return reinterpret_cast<const UserType*>(m_addr);
     }
 
-    template< typename Obj>
-    Obj* as() {
-      assert(resolve<Obj>() == m_type || fatal("Failed runtime conversion from type is %s to requested type %s\n", m_type->name(), resolve<Obj>()->name()));
-      return reinterpret_cast<Obj*>(m_addr);
+    template< typename UserType>
+    UserType* as() {
+      assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type %s\n", m_type->name(), resolve<UserType>()->name()));
+      return reinterpret_cast<UserType*>(m_addr);
     }
 
     template< typename Value >
     bool set(const Value& new_value) const {
       const Value* addr = as<Value>();
-      assert(addr || fatal("Can't set new value, ref points to null object\n"));
+      assert(addr || REFLECTOR_ERROR("Can't set new value, Ref points to null object\n"));
       // Not using the setter!! but we don't have the data accessor.
       *const_cast<Value*>(addr) = new_value;
       return true;
     }
 
     template< typename Value >
-    bool set(const data* d, const Value&& value) const {
-      assert(d);
-      assert(d->m_parent == m_type);
-      assert(d->type() == ::resolve<Value>());
+    bool set(const Data* d, const Value&& value) const {
+      assert(d || REFLECTOR_ERROR("Can't set new value. Invalid Data access object\n"));
+      assert(d->parent() == m_type || REFLECTOR_ERROR("Can't set new value, Data %s is not part of current type %s, it's from type %s\n", d->name(), type()->name(), d->parent()->name()));
+      assert(m_addr || REFLECTOR_ERROR("Can't set new value. Ref points to null object\n"));
       d->m_setter(m_addr, &value);
       return true;
     }
 
     // -----------------------------------------
     Ref get(const char* data_name) const {
-      const data* d = type()->data(data_name);
-      assert(d);
+      assert(data_name);
+      const Data* d = type()->data(data_name);
+      assert(d || REFLECTOR_ERROR("Can't find Data member named %s in Ref type %s\n", data_name, type()->name()));
       return get(d);
     }
 
-    Ref get(const data* d) const {
+    Ref get(const Data* d) const {
       assert(d);
       assert(d->parent() == m_type);
       Ref r;
@@ -313,14 +317,14 @@ namespace Reflector {
 
     // -----------------------------------------
     void invoke(const char* func_name) const {
-      const func* f = type()->func(func_name);
-      assert(f || fatal("Function %s is not defined for type %s\n", func_name, type()->name()));
+      const Func* f = type()->func(func_name);
+      assert(f || REFLECTOR_ERROR("Function %s is not defined for type %s\n", func_name, type()->name()));
       invoke(f);
     }
 
-    void invoke(const func* f) const {
+    void invoke(const Func* f) const {
       assert(f);
-      assert(f->parent() == m_type);
+      assert(f->parent() == m_type || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
       f->m_invoker(m_addr);
     }
   };
@@ -332,13 +336,12 @@ namespace Reflector {
     r.m_type = resolve<Property>();
     r.m_addr = new Property(std::move(property));
     m_props.push_back(r);
-    printf("Adding property type %s\n", r.type()->name());
     initProp(std::forward<Other>(other)...);
   }
 
   template< typename PropType >
   const PropType* PropsContainer::propByType() const {
-    const struct type* t = resolve<PropType>();
+    const struct Type* t = resolve<PropType>();
     for (auto& p : m_props) {
       if (p.type() == t) {
         return p.as<PropType>();
@@ -347,5 +350,6 @@ namespace Reflector {
     return nullptr;
   }
 
-
 }
+
+#include "reflector_json.h"

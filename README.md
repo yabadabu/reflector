@@ -1,12 +1,19 @@
-=== TODO
+
+== TODO
 
 - members using fn to set
-- base class, derivedtrix class
+- base class, derived class
 - Support for dicts
 - Improve register
-- Release memory
-+ invoke super basic fns?
+- Release allocated memory
+- I/O Binary
+- I/O ImGui
+
+== Done
+
++ Serialize to/from json using the nlohmann as json data type
++ invoke super basic fns
 + Support for std::strings
 + Support for std::vector
-+ Check dupes members, duped names
-+ confirm json of enums can work
++ Check duped members, duped names
++ Confirm json of enums work

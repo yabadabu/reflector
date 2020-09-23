@@ -25,11 +25,10 @@ namespace Reflector {
       j = json::array();
       size_t idx = 0;
       for (auto& item : container) {
-        typename Container::const_reference item = container[idx];
-        Ref child(&item);
+        Ref child(&container[idx]);
         json jitem;
         toJson(jitem, child);
-        j.push_back(jitem);
+        j[idx] = std::move(jitem);
         ++idx;
       }
     };
@@ -46,7 +45,7 @@ namespace Reflector {
   }
 
   // -------------------- Helper to declare std::vector<Item> with the json serialzier
-  // Example: reflectVector<int>("int")..;
+  // Example: reflectVector<int>("int");
   template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
   Factory<UserType>& reflectVector(const char* name, Property &&... property) {
     static std::string vname = "std::vector<" + std::string(name) + ">";
