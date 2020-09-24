@@ -1,3 +1,5 @@
+This is my reduced toy version from the awesome https://github.com/skypjack/meta
+
 # Features
 - No macros
 - read/write from/to json (wip for binary)
@@ -15,10 +17,12 @@
 
 # Requirements
 - C++ 17
-- Requires declare members at runtime. Allow to delete types also.
+- Uses https://github.com/nlohmann/json for json input/output
+- Requires to declare members at runtime. You can also unregister types.
 - Memory is owned by the user types. If class `Foo` has a member data `const char* text`, we can export
-  it to json, but we can't read back to a new instance of Foo automatically without knowing who owns 
+  it to json, but we can't read back to a new instance of Foo automatically without knowing who creates/owns 
   the pointer.
+
 
 ```cpp
 struct House {
@@ -26,10 +30,12 @@ struct House {
   float size = 2.0f;
 };
 
+// Declare the type
 ::reflect<House>("House")
   .data<&House::life>("Life")
   .data<&House::size>("Size");
 
+// Access data members using names.
 House my_house;
 Ref r_house(&my_house);
 Ref r_life = r_house.get("Life");
