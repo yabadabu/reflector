@@ -64,12 +64,13 @@ namespace Reflector {
     std::function<void(void* owner, const void* new_value)> m_setter;
     std::function<void* (void* owner)>                      m_getter;
 
-    Data() = default;
-
   public:
+
     inline const char* name()   const { return m_name; }
     inline const Type* parent() const { return m_parent; }
     inline const Type* type()   const { return m_type; }
+
+    void setName(const char* new_name) { m_name = new_name; }
   };
 
   // ----------------------------------------
@@ -98,11 +99,13 @@ namespace Reflector {
     template<typename> friend struct Factory;
     template<typename UserType, typename... Property>
     friend Factory<UserType>& reflect(const char* name, Property &&... property) noexcept;
+    friend class Ref;
 
     const char*          m_name = nullptr;
     bool                 m_registered = false;
     std::vector< Data* > m_datas;
     std::vector< Func* > m_funcs;
+    void               (*m_copy)(void* dst, const void* src);
 
   public:
 
@@ -156,7 +159,7 @@ namespace Reflector {
   // Create an internal namespace to hide some details
   namespace details {
     template< typename UserType >
-    Type* resolve() {
+    Type* resolve() noexcept {
       static Type user_type("TypeNameUnknown");
       return &user_type;
     };
@@ -169,7 +172,7 @@ namespace Reflector {
   Type* resolve() {
     return details::resolve< std::decay_t<UserType> >();
   };
-
+ 
   // --------------------------------------------
   template< typename MainType >
   struct Factory {
@@ -233,12 +236,22 @@ namespace Reflector {
   Factory<UserType>& reflect(const char* name, Property &&... property) noexcept {
     Type* user_type = resolve<UserType>();
 
-    assert(!user_type->m_registered || REFLECTOR_ERROR("Type %s is already defined\n", name));
+    if (!user_type->m_registered) {
+      user_type->m_registered = true;
+      user_type->m_name = name;
+      user_type->m_copy = [](void* dst, const void* src) {
+        assert(src && dst);
+        const UserType* typed_src = reinterpret_cast<const UserType*>(src);
+        UserType* typed_dst = reinterpret_cast<UserType*>(dst);
+        *typed_dst = *typed_src;
+      };
 
-    user_type->m_name = name;
-    user_type->m_registered = true;
+      Register::addType(user_type);
+    }
+    else {
+      assert(strcmp(user_type->m_name, name) == 0);
+    }
     user_type->initProp(std::forward<Property>(property)...);
-    Register::addType(user_type);
 
     static Factory<UserType> f{ user_type };
     return f;
@@ -305,7 +318,7 @@ namespace Reflector {
     }
 
     template< typename Value >
-    void set(const Data* d, const Value&& value) const {
+    void set(const Data* d, const Value& value) const {
       assert(d || REFLECTOR_ERROR("Can't set new value. Invalid Data access object\n"));
       assert(d->parent() == m_type || REFLECTOR_ERROR("Can't set new value, Data %s is not part of current type %s, it's from type %s\n", d->name(), type()->name(), d->parent()->name()));
       assert(m_addr || REFLECTOR_ERROR("Can't set new value. Ref points to null object\n"));
@@ -327,6 +340,16 @@ namespace Reflector {
       r.m_type = d->type();
       r.m_addr = d->m_getter(m_addr);
       return r;
+    }
+
+    // -----------------------------------------
+    bool copyFrom(const Ref& r2) {
+      if (type() != r2.type())
+        return false;
+      assert(isValid());
+      assert(r2.isValid());
+      type()->m_copy(m_addr, r2.rawAddr());
+      return true;
     }
 
     // -----------------------------------------

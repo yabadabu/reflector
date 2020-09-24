@@ -16,8 +16,8 @@ namespace Reflector {
     void delType(Type* t) {
       assert(t);
       auto it = std::find(details::all_user_types.begin(), details::all_user_types.end(), t);
-      assert(it != details::all_user_types.end());
-      details::all_user_types.erase(it);
+      if(it != details::all_user_types.end())
+        details::all_user_types.erase(it);
     }
 
   }
@@ -63,36 +63,24 @@ namespace Reflector {
   }
 
   // ---------------------------------------------------------
-  static void int_to_json(json& jout, const Ref& r) {
-    jout = *r.as<int>();
+  template< typename T>
+  static void basic_to_json(json& jout, const Ref& r) {
+    jout = *r.as<T>();
   }
-  static void int_from_json(const json& j, const Ref& r) {
-    int ival = j.get<int>();
-    r.set(ival);
-  }
-  
-  static void float_to_json(json& jout, const Ref& r) {
-    jout = *r.as<float>();
-  }
-  static void float_from_json(const json& j, const Ref& r) {
-    float ival = j.get<float>();
-    r.set(ival);
-  }
-
-  static void string_to_json(json& j, const Ref& r) {
-    j = *r.as<std::string>();
-  }
-  static void string_from_json(const json& j, const Ref& r) {
-    std::string ival = j.get<std::string>();
+  template< typename T>
+  static void basic_from_json(const json& j, const Ref& r) {
+    T ival = j.get<T>();
     r.set(ival);
   }
 
   // ---------------------------------------------------------
   void registerCommonTypes() {
     reflect<jsonIO>("jsonIO");
-    reflect<float>("f32", jsonIO{ &float_to_json, &float_from_json });
-    reflect<int>("int", jsonIO{ &int_to_json, &int_from_json });
-    reflect<std::string>("std::string", jsonIO{ &string_to_json, &string_from_json });
+    reflect<float>("float", jsonIO{ &basic_to_json<float>, &basic_from_json<float> });
+    reflect<int>("int", jsonIO{ &basic_to_json<int>, &basic_from_json<int> });
+    reflect<bool>("bool", jsonIO{ &basic_to_json<bool>, &basic_from_json<bool> });
+    reflect<uint32_t>("uint", jsonIO{ &basic_to_json<uint32_t>, &basic_from_json<uint32_t> });
+    reflect<std::string>("std::string", jsonIO{ &basic_to_json<std::string>, &basic_from_json<std::string> });
   }
 
 }

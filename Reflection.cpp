@@ -179,6 +179,19 @@ void testTypes() {
   city2.size = City::eSize::Small;
   toJson(j2, Ref(&city2));
   dbg("City2; %s\n", j2.dump(2, ' ').c_str());
+
+  // Test copy operator
+  House h1;
+  h1.life = 100;
+  h1.size = 101;
+  House h2;
+  h2.life = 1;
+  h2.size = 2;
+  Ref r1(&h1);
+  Ref r2(&h2);
+  r1.copyFrom(r2);
+  assert(h1.life == h2.life);
+  assert(h1.size == h2.size);
 }
 
 void myDbgHandler(const char* txt) {
