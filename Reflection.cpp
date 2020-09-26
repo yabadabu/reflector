@@ -327,6 +327,22 @@ void testBase() {
   Base* b3b = rd1.tryAs<Base>();
   assert(b3 == &derived1);
   assert(b3 == b3b);
+
+  // Copy from derived to base
+  Base b4;
+  bool rd1_to_b4 = Ref(&b4).copyFrom(rd1);
+  assert(rd1_to_b4);
+  assert(b4.name == derived1.name);
+  assert(b4.score == derived1.score);
+
+  // Copy from base to derived
+  Derived1 derived1c;
+  derived1c.speed = 31;
+  bool b4_to_d1c = Ref(&derived1c).copyFrom(&b4);
+  assert(b4_to_d1c);
+  assert(b4.name == derived1c.name);
+  assert(b4.score == derived1c.score);
+  assert(derived1c.speed == 31);    // Speed field has not been modified
 }
 
 // -----------------------------------------------------------------

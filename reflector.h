@@ -370,11 +370,17 @@ namespace Reflector {
 
     // -----------------------------------------
     bool copyFrom(Ref r2) {
-      if (type() != r2.type())
-        return false;
       assert(isValid());
       assert(r2.isValid());
-      type()->m_copy(m_addr, r2.rawAddr());
+      const Type* t2 = r2.type();
+      if (m_type == t2)
+        t2->m_copy(m_addr, r2.rawAddr());
+      else if (t2->derivesFrom(m_type))
+        type()->m_copy(m_addr, r2.rawAddr());
+      else if (m_type->derivesFrom(t2))
+        t2->m_copy(m_addr, r2.rawAddr());
+      else
+        return false;
       return true;
     }
 
