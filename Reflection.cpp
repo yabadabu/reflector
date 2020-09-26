@@ -252,12 +252,12 @@ void testBase() {
     ;
 
   reflect<Derived1>("Derived1")
-    .base(resolve<Base>())
+    .base<Base>()
     .data<&Derived1::speed>("Speed")
     ;
 
   reflect<Derived2>("Derived2")
-    .base(resolve<Base>())
+    .base<Base>()
     .data<&Derived2::accuracy>("Accuracy")
     ;
 
@@ -396,4 +396,5 @@ int main()
   dumpTypes();
   testTypes();
   testBase();
+  dumpTypes();
 }

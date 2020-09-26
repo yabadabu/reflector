@@ -11,6 +11,10 @@ namespace REFLECTOR_NAMESPACE {
   struct jsonIO {
     std::function<void(json& j, Ref r)> to_json;
     std::function<void(const json& j, Ref r)> from_json;
+
+    // This works like tags to customize how to load from json
+    // Assume there is just one member in the struct,
+    struct SingleValue {};
   };
 
   // Specialized funcions for Ref, which do the actual work

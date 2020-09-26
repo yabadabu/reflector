@@ -130,13 +130,22 @@ namespace REFLECTOR_NAMESPACE {
     void data(Fn fn) const {
       for (auto d : m_datas)
         fn(d);
+      // Not iterating on the parent data members... Maybe we should?
+    }
+
+    // Iterate over all props and my parent props
+    template< typename Fn>
+    void props(Fn fn) const {
+      PropsContainer::props(fn);
+      if( m_parent )
+        m_parent->props(fn);
     }
 
     const Data* data(const char* data_name) const {
       for (auto d : m_datas)
         if (strcmp(d->name(), data_name) == 0)
           return d;
-      // Try in the parent type
+      // Try to find in the parent type
       if (m_parent)
         return m_parent->data(data_name);
       return nullptr;
@@ -168,17 +177,18 @@ namespace REFLECTOR_NAMESPACE {
   // The global registry...
   namespace Register {
 
-    void addType(Type* new_type);
-    void delType(Type* new_type);
+    REFLECTOR_API void addType(Type* new_type);
+    REFLECTOR_API void delType(Type* new_type);
 
     namespace details {
-      extern std::vector< Type* > all_user_types;
+      using AllTypesContainer = std::vector< Type* >;
+      REFLECTOR_API const AllTypesContainer& allTypes();
     }
 
     // Iterate over all defined types
     template<typename Fn>
     void types(Fn fn) {
-      for (auto t : details::all_user_types)
+      for (auto t : details::allTypes())
         fn(t);
     }
   };
@@ -239,9 +249,11 @@ namespace REFLECTOR_NAMESPACE {
       return *this;
     }
 
-    Factory<MainType>& base(const Type* base_type) noexcept {
+    template< typename BaseType >
+    Factory<MainType>& base() noexcept {
       assert(the_type);
-      assert(base_type);
+
+      const Type* base_type = resolve<BaseType>();
       
       // Already set to the same type. skip and don't complain
       if (base_type == the_type->m_parent)
@@ -298,6 +310,12 @@ namespace REFLECTOR_NAMESPACE {
 
     static Factory<UserType> f{ user_type };
     return f;
+  }
+
+  // -------------------------------------------
+  template< typename T >
+  void unregisterType() {
+    Register::delType(resolve<T>());
   }
 
   // -------------------------------------------

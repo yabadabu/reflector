@@ -6,6 +6,11 @@ namespace REFLECTOR_NAMESPACE {
 
     namespace details {
       std::vector< Type* > all_user_types;
+
+      const AllTypesContainer& allTypes() {
+        return all_user_types;
+      }
+
     }
 
     void addType(Type* t) {
@@ -68,10 +73,17 @@ namespace REFLECTOR_NAMESPACE {
     else {
       t->data([&](const Data* d) {
         const char* key = d->name();
-        if (!j.count(key))
-          return;
-        const json& jv = j[key];
-        fromJson(jv, r.get(d));
+        if (!j.count(key)) {
+          // Key not found
+          if (d->propByType<jsonIO::SingleValue>()) {
+            fromJson(j, r.get(d));
+            return;
+          }
+        }
+        else {
+          const json& jv = j[key];
+          fromJson(jv, r.get(d));
+        }
         });
     }
   }
