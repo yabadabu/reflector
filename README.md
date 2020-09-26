@@ -12,8 +12,10 @@ This is my reduced toy version from the awesome https://github.com/skypjack/meta
 - Components
   - Type: Any C++ type
   - Data: Members associated to a type.
-  - Ref: A pair of {Type + Address}. Address not owned by the Ref
+  - Ref: A pair of {Type + Address}. Address not owned by the Ref.
+    You can create Ref from the address of a typed C++ object.
 - Copy values between refs
+- Base class.
 
 # Requirements
 - C++ 17
@@ -70,10 +72,10 @@ assert( your_house.size == my_house.size );
 - [x] Support for std::vector
 - [x] Check duped members, duped names
 - [x] Confirm json of enums work
+- [x] base class, derived class
 
 ## ToDo
 
-- [x] base class, derived class
 - [ ] I/O ImGui
 - [ ] I/O Binary
 - [ ] members using fn to get/set

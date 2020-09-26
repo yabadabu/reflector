@@ -56,6 +56,9 @@ struct House {
   void render() {
     dbg("Rendering house %d,%f\n", life, size);
   }
+  bool operator==(const House& h) const {
+    return h.life == life && h.size == size;
+  }
 };
 
 typedef std::vector<int> IDs;
@@ -142,6 +145,8 @@ void registerTypes() {
 
 // -----------------------------------------------------------------------------------
 void testTypes() {
+
+  // Create a dummy object
   City city;
   city.houses.resize(2);
   city.houses[0] = House{ 10,20.f };
@@ -149,21 +154,36 @@ void testTypes() {
   city.ids.emplace_back(99);
   city.ids.emplace_back(102);
   
+  // Create a separate object
   House house;
   Ref r_house(&house);
   dumpRef(r_house);
   house.life = 10;
+
+  // Get a Data obj to access the Life data member from any House
   const Data* d_life = r_house.type()->data("Life");
   assert(d_life);
-  Ref r_life = r_house.get(d_life);
-  int prev_life = *r_life.as<int>();
-  assert(prev_life == 10);
-  //r_house.set(d_life, 4);
-  r_life.set(4);
-  assert(house.life == 4);
-  int new_life = *r_life.as<int>();
-  assert(new_life == 4);
 
+  // Given a Ref to a house, get access to the Life data member
+  Ref r_life = r_house.get(d_life);
+  
+  // Refs return the address of data members
+  int* prev_life = r_life.as<int>();
+  assert(prev_life && *prev_life == 10);
+
+  // Set the value using the House
+  r_house.set(d_life, 4);
+  assert(house.life == 4);
+
+  // Set the value using the Data member access
+  r_life.set(5);
+  assert(house.life == 5);
+
+  // All calls are ready/writing on the same value
+  int new_life = *r_life.as<int>();
+  assert(new_life == 5);
+
+  // Call to method Render using a reference
   r_house.invoke("Render");
   Ref(&city).invoke("Render");
 
@@ -174,12 +194,16 @@ void testTypes() {
   city.council = house;
   city.name = "Barcelona";
 
+  // Convert obj to json
   json j;
   toJson(j, &city);
   dbg("City: %s\n", j.dump(2, ' ').c_str());
 
+  // Convert json to obj
   City city2;
   fromJson(j, &city2);
+
+  // Chain Data members to change a var down in the hierarchy of city2
   json j2;
   Ref(&city2).get("council").get("Size").set(4.2f);
   city2.size = City::eSize::Small;
@@ -196,8 +220,13 @@ void testTypes() {
   Ref r1(&h1);
   Ref r2(&h2);
   r1.copyFrom(r2);
-  assert(h1.life == h2.life);
-  assert(h1.size == h2.size);
+  assert(h1 == h2);
+
+  // Or directly...
+  House h3;
+  Ref(&h3).copyFrom(&h1);
+  assert(h1 == h3);
+
 }
 
 // -----------------------------------------------------------
