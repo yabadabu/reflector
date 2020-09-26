@@ -1,6 +1,6 @@
 #include "reflector.h"
 
-namespace Reflector {
+namespace REFLECTOR_NAMESPACE {
 
   namespace Register {
 
@@ -16,7 +16,7 @@ namespace Reflector {
     void delType(Type* t) {
       assert(t);
       auto it = std::find(details::all_user_types.begin(), details::all_user_types.end(), t);
-      if(it != details::all_user_types.end())
+      if (it != details::all_user_types.end())
         details::all_user_types.erase(it);
     }
 

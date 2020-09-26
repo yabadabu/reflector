@@ -25,6 +25,8 @@ This is my reduced toy version from the awesome https://github.com/skypjack/meta
   it to json, but we can't read back to a new instance of Foo automatically without knowing who creates/owns 
   the pointer.
 
+# Some examples.
+Check more in the sample code.
 
 ```cpp
 struct House {
@@ -73,9 +75,11 @@ assert( your_house.size == my_house.size );
 - [x] Check duped members, duped names
 - [x] Confirm json of enums work
 - [x] base class, derived class
+- [x] Allow customization to export to dll's, namespace and error msgs
 
 ## ToDo
 
+- [ ] More examples
 - [ ] I/O ImGui
 - [ ] I/O Binary
 - [ ] members using fn to get/set

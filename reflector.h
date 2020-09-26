@@ -7,9 +7,18 @@
 #define REFLECTOR_ERROR fatal
 #endif
 
+#ifndef REFLECTOR_API
+#define REFLECTOR_API
+#endif
+
+#ifndef REFLECTOR_NAMESPACE
+#define REFLECTOR_NAMESPACE Reflector
+#endif
+
+
 extern int REFLECTOR_ERROR(const char* fmt, ...);
 
-namespace Reflector {
+namespace REFLECTOR_NAMESPACE {
 
   class Type;
   class Data;
@@ -166,6 +175,7 @@ namespace Reflector {
       extern std::vector< Type* > all_user_types;
     }
 
+    // Iterate over all defined types
     template<typename Fn>
     void types(Fn fn) {
       for (auto t : details::all_user_types)
@@ -177,7 +187,7 @@ namespace Reflector {
   // Create an internal namespace to hide some details
   namespace details {
     template< typename UserType >
-    Type* resolve() noexcept {
+    REFLECTOR_API Type* resolve() noexcept {
       static Type user_type("TypeNameUnknown");
       return &user_type;
     };

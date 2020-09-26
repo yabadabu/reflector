@@ -3,7 +3,7 @@
 #include "nlohmann/json.hpp"
 using nlohmann::json;
 
-namespace Reflector {
+namespace REFLECTOR_NAMESPACE {
 
   // -----------------------------------------------------------------------------------
   // Json IO
@@ -14,18 +14,18 @@ namespace Reflector {
   };
 
   // Specialized funcions for Ref, which do the actual work
-  void toJson(json& jout, Ref r);
-  void fromJson(const json& jout, Ref r);
+  REFLECTOR_API void toJson(json& jout, Ref r);
+  REFLECTOR_API void fromJson(const json& jout, Ref r);
 
   // Template in case the user send the object directly
   template< typename T>
-  void toJson(json& jout, T* r) {
+  REFLECTOR_API void toJson(json& jout, T* r) {
     static_assert(!std::is_same_v<T, Ref>, "using toJson with an address to a Ref. You probably want to send a Ref object, or the address of an object.");
     toJson(jout, Ref(r));
   }
 
   template< typename T>
-  void fromJson(const json& jout, T* r) {
+  REFLECTOR_API void fromJson(const json& jout, T* r) {
     fromJson(jout, Ref(r));
   }
 
@@ -62,6 +62,6 @@ namespace Reflector {
     return reflect<UserType>(vname.c_str(), makeVectorIO<UserType>(), std::forward<Property>(property)...);
   }
 
-  void registerCommonTypes();
+  REFLECTOR_API void registerCommonTypes();
 
 }
