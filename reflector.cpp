@@ -23,16 +23,22 @@ namespace Reflector {
   }
 
   // ---------------------------------------------------------
-  void toJson(json& jout, const Ref& r) {
+  void toJson(json& jout, Ref r) {
     const Type* t = r.type();
     assert(t);
+
+    // Export first the base class
+    if (t->parent()) {
+      Ref rp = r.asBaseRef();
+      toJson(jout, rp);
+    }
+
     const jsonIO* jio = t->propByType<jsonIO>();
     if (jio) {
       jio->to_json(jout, r);
     }
     else {
       // Default behaviour is to iterate over all props and return an object
-      jout = json();
       t->data([&](const Data* d) {
         const char* key = d->name();
         json j;
@@ -42,11 +48,19 @@ namespace Reflector {
         jout[key] = std::move(j);
         });
     }
+
   }
 
-  void fromJson(const json& j, const Ref& r) {
+  void fromJson(const json& j, Ref r) {
     const Type* t = r.type();
     assert(t);
+
+    // Read first the base class
+    if (t->parent()) {
+      Ref rp = r.asBaseRef();
+      fromJson(j, rp);
+    }
+
     const jsonIO* jio = t->propByType<jsonIO>();
     if (jio) {
       jio->from_json(j, r);
@@ -64,11 +78,11 @@ namespace Reflector {
 
   // ---------------------------------------------------------
   template< typename T>
-  static void basic_to_json(json& jout, const Ref& r) {
+  static void basic_to_json(json& jout, Ref r) {
     jout = *r.as<T>();
   }
   template< typename T>
-  static void basic_from_json(const json& j, const Ref& r) {
+  static void basic_from_json(const json& j, Ref r) {
     T ival = j.get<T>();
     r.set(ival);
   }

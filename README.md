@@ -42,9 +42,15 @@ Ref r_life = r_house.get("Life");
 r_life.set(10);
 assert( my_house.life == 10);
 
+// Or chain them 
+r_house.get("Life").set(11);
+
 // Serialize to json
 json j;
 toJson(j, r_house);  // j = { "Life" : 10, "size" : 2.0 }
+
+// Or send the addr of an object
+toJson(j, &my_house);  // j = { "Life" : 10, "size" : 2.0 }
 
 // Read from json
 House your_house;
@@ -55,15 +61,6 @@ assert( your_house.size == my_house.size );
 
 ```
 
-## ToDo
-
-- [ ] I/O ImGui
-- [ ] I/O Binary
-- [ ] members using fn to set
-- [ ] base class, derived class
-- [ ] Support for dicts
-- [ ] Release allocated memory
-
 ## Done
 
 - [x] Improve register
@@ -73,3 +70,13 @@ assert( your_house.size == my_house.size );
 - [x] Support for std::vector
 - [x] Check duped members, duped names
 - [x] Confirm json of enums work
+
+## ToDo
+
+- [x] base class, derived class
+- [ ] I/O ImGui
+- [ ] I/O Binary
+- [ ] members using fn to get/set
+- [ ] Support for dicts
+- [ ] Release allocated memory
+

@@ -8,7 +8,7 @@ using namespace Reflector;
 #include "utils.h"
 
 void dumpProps(const PropsContainer& props_container) {
-  props_container.props([](const Ref& r) {
+  props_container.props([](Ref r) {
     json j;
     toJson(j, r);
     dbg("    Prop: %s %s\n", r.type()->name(), j.dump().c_str());
@@ -35,12 +35,12 @@ void dumpTypes() {
 #include "named_values.h"
 jsonIO makeEnumIO(const INamedValues* named_values) {
   jsonIO j;
-  j.to_json = [named_values](json& j, const Ref& r) {
+  j.to_json = [named_values](json& j, Ref r) {
     const int* iaddr = (const int*)r.rawAddr();
     assert(iaddr);
     j = named_values->nameOfInt(*iaddr);
   };
-  j.from_json = [named_values](const json& j, const Ref& r) {
+  j.from_json = [named_values](const json& j, Ref r) {
     const std::string& txt = j.get<std::string>();
     int ival = named_values->intValueOf(txt.c_str());
     int* iaddr = (int*)r.rawAddr();
@@ -99,6 +99,12 @@ struct IntRange {
 
 // -----------------------------------------------------------------------------------
 void registerTypes() {
+
+  dbg("Sizeof(Ref) = %ld\n", sizeof(Ref));
+  dbg("Sizeof(Type) = %ld\n", sizeof(Type));
+  dbg("Sizeof(Data) = %ld\n", sizeof(Data));
+  dbg("Sizeof(Func) = %ld\n", sizeof(Func));
+  dbg("Sizeof(PropsContainer) = %ld\n", sizeof(PropsContainer));
 
   registerCommonTypes();
   reflectVector<House>("House");
@@ -169,15 +175,15 @@ void testTypes() {
   city.name = "Barcelona";
 
   json j;
-  toJson(j, Ref(&city));
+  toJson(j, &city);
   dbg("City: %s\n", j.dump(2, ' ').c_str());
 
   City city2;
-  fromJson(j, Ref(&city2));
+  fromJson(j, &city2);
   json j2;
   Ref(&city2).get("council").get("Size").set(4.2f);
   city2.size = City::eSize::Small;
-  toJson(j2, Ref(&city2));
+  toJson(j2, &city2);
   dbg("City2; %s\n", j2.dump(2, ' ').c_str());
 
   // Test copy operator
@@ -194,6 +200,136 @@ void testTypes() {
   assert(h1.size == h2.size);
 }
 
+// -----------------------------------------------------------
+struct Base {
+  int         score = 10;
+  std::string name = "unnamed";
+};
+
+struct Derived1 : public Base {
+  int         speed = 20;
+};
+
+struct Derived2 : public Base {
+  float       accuracy = 6.0f;
+};
+
+void testBase() {
+
+  // Define a base type and 2 derived classes
+  reflect<Base>("Base")
+    .data<&Base::score>("Score")
+    .data<&Base::name>("name")
+    ;
+
+  reflect<Derived1>("Derived1")
+    .base(resolve<Base>())
+    .data<&Derived1::speed>("Speed")
+    ;
+
+  reflect<Derived2>("Derived2")
+    .base(resolve<Base>())
+    .data<&Derived2::accuracy>("Accuracy")
+    ;
+
+  Base base;
+  base.name = "base";
+  base.score = 10;
+  Derived1 derived1;
+  derived1.name = "derived1";
+  derived1.score = 100;
+  Derived2 derived2;
+  derived2.name = "derived2";
+  derived2.score = 200;
+
+  Ref rbase(&base);
+  Ref rd1(&derived1);
+  Ref rd2(&derived2);
+
+  assert(rbase.type() != rd1.type());
+  assert(rbase.type() == rd1.type()->parent());
+  assert(rbase.type() == rd2.type()->parent());
+  assert(rd2.type()->derivesFrom(rbase.type()));
+  assert(rd1.type()->derivesFrom(rbase.type()));
+  assert(!rd2.type()->derivesFrom(rd1.type()));
+  assert(!rd1.type()->derivesFrom(rd2.type()));
+  
+  const Data* dbase_score = resolve<Base>()->data("Score");
+  Ref rbase_score = rbase.get(dbase_score);
+  assert(*rbase_score.as<int>() == 10);
+
+  // Use a data from base class in a derived class
+  Ref rd1_score = rd1.get(dbase_score);
+  assert(*rd1_score.as<int>() == 100);
+
+  // And change values in derived clasess
+  rd1.set(dbase_score, 101);
+  assert(*rd1_score.as<int>() == 101);
+  assert(derived1.score == 101);
+
+  // Derived classes can query data members of the base class
+  const Data* dd1_score = rd1.type()->data("Score");
+  assert(dd1_score == dbase_score);
+
+  // Use a data from base class in the second derived class
+  Ref rd2_score = rd2.get(dbase_score);
+  assert(*rd2_score.as<int>() == 200);
+  assert(derived2.score == 200);
+
+  // Export to json exports the base members...
+  json jd1;
+  ::toJson(jd1, &derived1);
+  dbg("%s\n", jd1.dump().c_str());
+  assert(jd1["Score"] == 101);
+  assert(jd1["name"] == "derived1");
+  assert(jd1["Speed"] == 20);
+
+  json jd2;
+  ::toJson(jd2, &derived2);
+  dbg("%s\n", jd2.dump().c_str());
+  assert(jd2["Score"] == 200);
+  assert(jd2["name"] == "derived2");
+  assert(jd2["Accuracy"] == 6.0f);
+
+  // Can use a ref object to convert to json to get the same results
+  json jd2b;
+  ::toJson(jd2b, rd2);
+  assert(jd2 == jd2b);
+
+  json jbase;
+  ::toJson(jbase, &base);
+  dbg("%s\n", jbase.dump().c_str());
+  assert(jbase["Score"] == 10);
+  assert(jbase["name"] == "base");
+
+  // Back to objects from json
+  Derived1 derived1b;
+  fromJson(jd1, &derived1b);
+  assert(derived1.name == derived1b.name);
+  assert(derived1.score == derived1b.score);
+  assert(derived1.speed == derived1b.speed);
+
+  // Use the base json to read into a derived object. Some members are not updated 
+  // as the json does not contain the data exclusive from derived
+  Derived2 derived2b;
+  fromJson(jbase, &derived2b);
+  assert(base.name == derived2b.name);
+  assert(base.score == derived2b.score);
+
+  // Use the derived json to read into a base object
+  Base b2;
+  fromJson(jd2, &b2);
+  assert(b2.name == derived2.name);
+  assert(b2.score == derived2.score);
+
+  // Check cast works
+  Base* b3 = rd1.as<Base>();
+  Base* b3b = rd1.tryAs<Base>();
+  assert(b3 == &derived1);
+  assert(b3 == b3b);
+}
+
+// -----------------------------------------------------------------
 void myDbgHandler(const char* txt) {
   printf("%s", txt);
   ::OutputDebugString(txt);
@@ -214,4 +350,5 @@ int main()
   registerTypes();
   dumpTypes();
   testTypes();
+  testBase();
 }

@@ -57,9 +57,9 @@ namespace Reflector {
 
     friend class Type;
     const char* m_name = "unknown_data_name";
-    bool        m_registered = false;
     const Type* m_type = nullptr;
     const Type* m_parent = nullptr;
+    bool        m_registered = false;
 
     std::function<void(void* owner, const void* new_value)> m_setter;
     std::function<void* (void* owner)>                      m_getter;
@@ -80,8 +80,8 @@ namespace Reflector {
     friend class Ref;
 
     const char* m_name = "unknown_func_name";
-    bool        m_registered = false;
     const Type* m_parent = nullptr;
+    bool        m_registered = false;
 
     // Current support is just dummy methods with no args/no return values
     std::function<void(void* owner)> m_invoker;
@@ -102,10 +102,11 @@ namespace Reflector {
     friend class Ref;
 
     const char*          m_name = nullptr;
-    bool                 m_registered = false;
+    const Type*          m_parent = nullptr;
     std::vector< Data* > m_datas;
     std::vector< Func* > m_funcs;
-    void               (*m_copy)(void* dst, const void* src);
+    void               (*m_copy)(void* dst, const void* src) = nullptr;
+    bool                 m_registered = false;
 
   public:
 
@@ -114,6 +115,7 @@ namespace Reflector {
     { }
 
     inline const char* name() const { return m_name; }
+    inline const Type* parent() const { return m_parent; }
 
     template< typename Fn >
     void data(Fn fn) const {
@@ -125,6 +127,9 @@ namespace Reflector {
       for (auto d : m_datas)
         if (strcmp(d->name(), data_name) == 0)
           return d;
+      // Try in the parent type
+      if (m_parent)
+        return m_parent->data(data_name);
       return nullptr;
     }
 
@@ -132,7 +137,20 @@ namespace Reflector {
       for (auto d : m_funcs)
         if (strcmp(d->name(), func_name) == 0)
           return d;
+      // Try in the parent type
+      if (m_parent)
+        return m_parent->func(func_name);
       return nullptr;
+    }
+
+    bool derivesFrom(const Type* other) const {
+      const Type* t = this;
+      while (t) {
+        if (t == other)
+          return true;
+        t = t->m_parent;
+      }
+      return false;
     }
 
   };
@@ -211,6 +229,21 @@ namespace Reflector {
       return *this;
     }
 
+    Factory<MainType>& base(const Type* base_type) noexcept {
+      assert(the_type);
+      assert(base_type);
+      
+      // Already set to the same type. skip and don't complain
+      if (base_type == the_type->m_parent)
+        return *this;
+
+      assert(!the_type->m_parent
+        || REFLECTOR_ERROR("Can't set base class for %s to %s. It's already defined to be %s.", the_type->name(), base_type->name(), the_type->m_parent->name()));
+
+      the_type->m_parent = base_type;
+      return *this;
+    }
+
     template< auto Method>
     Factory<MainType>& func(const char* name) noexcept {
 
@@ -278,8 +311,7 @@ namespace Reflector {
     template< typename UserType >
     Ref(UserType* obj) :
       m_type(resolve<UserType>()),
-      m_addr((void*)obj)
-    {
+      m_addr((void*)obj) {
     }
 
     inline const Type* type() const { return m_type; }
@@ -287,40 +319,34 @@ namespace Reflector {
 
     // Will return null in case the type is not valid
     template< typename UserType>
-    const UserType* tryAs() const {
-      return resolve<UserType>() == m_type ? reinterpret_cast<const UserType*>(m_addr) : nullptr;
-    }
-
-    template< typename UserType>
     UserType* tryAs() {
-      return resolve<UserType>() == m_type ? reinterpret_cast<UserType*>(m_addr) : nullptr;
+      return m_type->derivesFrom(resolve<UserType>()) ? reinterpret_cast<UserType*>(m_addr) : nullptr;
     }
 
     // Will assert
     template< typename UserType>
-    inline const UserType* as() const {
-      assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type const %s\n", m_type->name(), resolve<UserType>()->name()));
-      return reinterpret_cast<const UserType*>(m_addr);
-    }
-
-    template< typename UserType>
     inline UserType* as() {
-      assert(resolve<UserType>() == m_type || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type %s\n", m_type->name(), resolve<UserType>()->name()));
+      assert(m_type->derivesFrom(resolve<UserType>()) || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type %s\n", m_type->name(), resolve<UserType>()->name()));
       return reinterpret_cast<UserType*>(m_addr);
     }
 
+    template< typename UserType>
+    inline const UserType* as() const {
+      assert(m_type->derivesFrom(resolve<UserType>()) || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type const %s\n", m_type->name(), resolve<UserType>()->name()));
+      return reinterpret_cast<const UserType*>(m_addr);
+    }
+
     template< typename Value >
-    void set(const Value& new_value) const {
-      const Value* addr = as<Value>();
+    void set(const Value& new_value) {
+      Value* addr = as<Value>();
       assert(addr || REFLECTOR_ERROR("Can't set new value, Ref points to null object\n"));
-      // Not using the setter!! but we don't have the data accessor.
-      *const_cast<Value*>(addr) = new_value;
+      *addr = new_value;
     }
 
     template< typename Value >
     void set(const Data* d, const Value& value) const {
       assert(d || REFLECTOR_ERROR("Can't set new value. Invalid Data access object\n"));
-      assert(d->parent() == m_type || REFLECTOR_ERROR("Can't set new value, Data %s is not part of current type %s, it's from type %s\n", d->name(), type()->name(), d->parent()->name()));
+      assert(m_type->derivesFrom(d->parent()) || REFLECTOR_ERROR("Can't set new value, Data %s is not part of current type %s, it's from type %s\n", d->name(), type()->name(), d->parent()->name()));
       assert(m_addr || REFLECTOR_ERROR("Can't set new value. Ref points to null object\n"));
       d->m_setter(m_addr, &value);
     }
@@ -335,7 +361,7 @@ namespace Reflector {
 
     Ref get(const Data* d) const {
       assert(d);
-      assert(d->parent() == m_type);
+      assert(m_type->derivesFrom(d->parent()));
       Ref r;
       r.m_type = d->type();
       r.m_addr = d->m_getter(m_addr);
@@ -343,7 +369,7 @@ namespace Reflector {
     }
 
     // -----------------------------------------
-    bool copyFrom(const Ref& r2) {
+    bool copyFrom(Ref r2) {
       if (type() != r2.type())
         return false;
       assert(isValid());
@@ -361,9 +387,20 @@ namespace Reflector {
 
     void invoke(const Func* f) const {
       assert(f);
-      assert(f->parent() == m_type || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
+      assert(isValid());
+      assert(m_type->derivesFrom( f->parent() ) || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
       f->m_invoker(m_addr);
     }
+
+    // -----------------------------------------
+    Ref asBaseRef() const {
+      Ref r;
+      r.m_addr = m_addr;
+      r.m_type = type()->parent();
+      return r;
+    }
+
+
   };
 
   template<typename Property, typename... Other>

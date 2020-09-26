@@ -14,4 +14,7 @@
   <ItemGroup>
     <None Include="README.md" />
   </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="nlohmann\nlohmann_json.natvis" />
+  </ItemGroup>
 </Project>
