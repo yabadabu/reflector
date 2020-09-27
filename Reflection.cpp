@@ -486,6 +486,8 @@ struct Invoke {
   struct Invokator {
     template<typename ...Args>
     inline Value invoke(Args... args) {
+      // Not strictly required, but allow to differenciate between the non-void result
+      // and the void result for any number of arguments...
       using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
       if constexpr (WhatInfo::return_is_void) {
         std::invoke(What, std::forward<Args>(args)...);
@@ -542,30 +544,28 @@ struct Invoke {
   void set() {
     if (std::is_member_function_pointer_v< decltype(What) >) {
       m_invoker = [](size_t n, Value* values) -> Value {
-        UserType* u = values[0].ref().as<UserType>();
+        UserType& u = values[0];
         using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
-
         dbg("Type of func info is %d\n", WhatInfo::return_is_void);
         dbg("User type %s\n", resolve<UserType>()->name());
         //dbg("is member %d\n", std::is_member_function_pointer_v< decltype(What) >);
 
-        Invokator<What> invokator;
-
         dbg("Invoker of %d vs %d\n", n, WhatInfo::num_args);
+        Invokator<What> invokator;
         if constexpr (WhatInfo::num_args == 0) {
-          return invokator.invoke(*u);
+          return invokator.invoke(u);
         }
         else if constexpr (WhatInfo::num_args == 1) {
-          return invokator.invoke(*u, values[1]);
+          return invokator.invoke(u, values[1]);
         }
         else if constexpr (WhatInfo::num_args == 2) {
-          return invokator.invoke(*u, values[1], values[2]);
+          return invokator.invoke(u, values[1], values[2]);
         }
         else if constexpr (WhatInfo::num_args == 3) {
-          return invokator.invoke(*u, values[1], values[2], values[3]);
+          return invokator.invoke(u, values[1], values[2], values[3]);
         }
         else if constexpr (WhatInfo::num_args == 4) {
-          return invokator.invoke(*u, values[1], values[2], values[3], values[4]);
+          return invokator.invoke(u, values[1], values[2], values[3], values[4]);
         }
         dbg("Is invocable with other combinations!\n");
         return 0;
