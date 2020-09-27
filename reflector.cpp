@@ -2,6 +2,16 @@
 
 namespace REFLECTOR_NAMESPACE {
 
+  const Func* Type::func(const char* func_name) const {
+    for (auto d : m_funcs)
+      if (strcmp(d->name(), func_name) == 0)
+        return d;
+    // Try in the parent type
+    if (m_parent)
+      return m_parent->func(func_name);
+    return nullptr;
+  }
+
   namespace Register {
 
     namespace details {

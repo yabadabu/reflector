@@ -121,6 +121,7 @@ struct IntRange {
   {}
 };
 
+
 // -----------------------------------------------------------------------------------
 void registerTypes() {
 
@@ -154,14 +155,15 @@ void registerTypes() {
     .data<&City::houses>("houses")
     .data<&City::ids>("ids")
     .data<&City::size>("size")
-    .func<&City::render>("Render")
+    //.func<&City::render>("Render")
     ;
 
   reflect<House>("House")
     .data<&House::life>("Life")
     .data<&House::size>("Size")
-    .func<&House::render>("Render")
+    //.func<&House::render>("Render")
     ;
+
 }
 
 // -----------------------------------------------------------------------------------
@@ -207,8 +209,8 @@ void testTypes() {
   assert(new_life == 5);
 
   // Call to method Render using a reference
-  r_house.invoke("Render");
-  Ref(&city).invoke("Render");
+  //r_house.invoke("Render");
+  //Ref(&city).invoke("Render");
 
   assert(resolve<double>());
 
@@ -428,7 +430,40 @@ void testValue() {
     Value v2 = v;
     dumpValue(v2);
   }
+
+  {
+    Value v;
+    std::vector<int> ids;
+    ids.push_back(2);
+    ids.emplace_back(21);
+    v = ids;
+    dumpValue(v);
+  }
   dbg("Value tests end...\n");
+}
+
+int fn1(int x, float f) {
+  dbg("At fn1(%d,%f)\n", x, f);
+  return x + 1;
+}
+
+template<auto What>
+struct Invokator {
+  template<typename ...Args>
+  Value invoke(Args... args) {
+    return std::invoke(What, args...);
+  }
+};
+
+void testFuncs() {
+  Value vin = 2;
+  Value vin_f = 2.1f;
+  Value vout = fn1(vin, vin_f);
+  dumpValue(vout);
+
+  Invokator<fn1> inv;
+  int k = inv.invoke(vin, vin_f);
+  dbg("Invoke returned %d\n", k);
 }
 
 // -----------------------------------------------------------------
@@ -455,4 +490,5 @@ int main()
   testBase();
   dumpTypes();
   testValue();
+  testFuncs();
 }

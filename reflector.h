@@ -23,6 +23,7 @@ namespace REFLECTOR_NAMESPACE {
   class Type;
   class Data;
   class Ref;
+  class Func;
 
   template< typename UserType >
   Type* resolve();
@@ -81,24 +82,6 @@ namespace REFLECTOR_NAMESPACE {
     void setName(const char* new_name) { m_name = new_name; }
   };
 
-  // ----------------------------------------
-  class Func {
-
-    template<typename> friend struct Factory;
-    friend class Ref;
-
-    const char* m_name = "unknown_func_name";
-    const Type* m_parent = nullptr;
-    bool        m_registered = false;
-
-    // Current support is just dummy methods with no args/no return values
-    void      (*m_invoker)(void* owner) = nullptr;
-
-  public:
-
-    inline const char* name()   const { return m_name; }
-    inline const Type* parent() const { return m_parent; }
-  };
 
   // ----------------------------------------
   // Type definition
@@ -150,15 +133,7 @@ namespace REFLECTOR_NAMESPACE {
       return nullptr;
     }
 
-    const Func* func(const char* func_name) const {
-      for (auto d : m_funcs)
-        if (strcmp(d->name(), func_name) == 0)
-          return d;
-      // Try in the parent type
-      if (m_parent)
-        return m_parent->func(func_name);
-      return nullptr;
-    }
+    const Func* func(const char* func_name) const;
 
     bool derivesFrom(const Type* other) const {
       const Type* t = this;
@@ -265,20 +240,8 @@ namespace REFLECTOR_NAMESPACE {
       return *this;
     }
 
-    template< auto Method>
+    template<typename Method>
     Factory<MainType>& func(const char* name) noexcept {
-
-      static Func user_func;
-      assert(!user_func.m_registered || REFLECTOR_ERROR("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
-      user_func.m_name = name;
-      user_func.m_registered = true;
-      user_func.m_parent = the_type;
-      user_func.m_invoker = [](void* owner) {
-        MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
-        std::invoke(Method, typed_owner);
-      };
-
-      the_type->m_funcs.push_back(&user_func);
 
       return *this;
     }
@@ -421,10 +384,10 @@ namespace REFLECTOR_NAMESPACE {
     }
 
     void invoke(const Func* f) const {
-      assert(f);
-      assert(isValid());
-      assert(m_type->derivesFrom( f->parent() ) || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
-      f->m_invoker(m_addr);
+      //assert(f);
+      //assert(isValid());
+      //assert(m_type->derivesFrom( f->parent() ) || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
+      //f->m_invoker(m_addr);
     }
 
     // -----------------------------------------
@@ -482,10 +445,15 @@ namespace REFLECTOR_NAMESPACE {
       new (m_data.data()) T(new_value);
     }
 
+    template<typename T>
+    operator const T& () const {
+      return get<T>();
+    }
+
     template< typename T>
-    const T& get() {
+    const T& get() const {
       assert(m_type == resolve<T>());
-      return *reinterpret_cast<T>(m_data.data());
+      return *reinterpret_cast<const T*>((const void*)m_data.data());
     }
 
     Ref ref() const {
@@ -495,6 +463,45 @@ namespace REFLECTOR_NAMESPACE {
       return r;
     }
   };
+
+  // ----------------------------------------
+  class Func {
+
+    template<typename> friend struct Factory;
+    friend class Ref;
+
+    const char* m_name = "unknown_func_name";
+    const Type* m_parent = nullptr;
+    bool        m_registered = false;
+
+    // Current support is just dummy methods with no args/no return values
+    void      (*m_invoker)(void* owner) = nullptr;
+
+  public:
+
+    inline const char* name()   const { return m_name; }
+    inline const Type* parent() const { return m_parent; }
+  };
+
+  /*
+  template< auto Method>
+  Factory<MainType>& Factory::func(const char* name) noexcept {
+
+    static Func user_func;
+    assert(!user_func.m_registered || REFLECTOR_ERROR("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
+    user_func.m_name = name;
+    user_func.m_registered = true;
+    user_func.m_parent = the_type;
+    user_func.m_invoker = [](void* owner) {
+      MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
+      std::invoke(Method, typed_owner);
+    };
+
+    the_type->m_funcs.push_back(&user_func);
+
+    return *this;
+  }
+  */
 
 }
 
