@@ -497,21 +497,6 @@ struct Invoke {
     }
   };
 
-  template<auto What, typename UserType>
-  struct MethodInvokator {
-    template<typename ...Args>
-    inline Value invoke(UserType& user_type, Args... args) {
-      using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
-      if constexpr (WhatInfo::return_is_void) {
-        std::invoke(What, user_type, std::forward<Args>(args)...);
-        return Value();
-      }
-      else {
-        return std::invoke(What, user_type, std::forward<Args>(args)...);
-      }
-    }
-  };
-
   /*
 
   template<auto What>
@@ -564,7 +549,7 @@ struct Invoke {
         dbg("User type %s\n", resolve<UserType>()->name());
         //dbg("is member %d\n", std::is_member_function_pointer_v< decltype(What) >);
 
-        MethodInvokator<What, UserType> invokator;
+        Invokator<What> invokator;
 
         dbg("Invoker of %d vs %d\n", n, WhatInfo::num_args);
         if constexpr (WhatInfo::num_args == 0) {
