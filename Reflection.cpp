@@ -442,19 +442,34 @@ void testValue() {
   dbg("Value tests end...\n");
 }
 
-// -----------------------------------------------------------------------
-template<typename>
-struct function_helper;
 
-template<typename Ret, typename... Args>
-struct function_helper<Ret(Args...)> {
-  using return_type = std::remove_cv_t<std::remove_reference_t<Ret>>;
-  static constexpr auto size = sizeof...(Args);
+// ------------------------------------------------------------------
+template <typename Fn>
+struct FunctionInfo;
+
+template <typename Result, typename ...Args>
+struct FunctionInfo<Result(Args...)> {
+  using ResultType = std::decay_t<Result>;
+  static constexpr size_t num_args = sizeof...(Args);
+  static constexpr bool return_is_void = std::is_same_v<void, ResultType>;
 };
+//  FunctionInfo<decltype( __a_real_function__ )>::return_is_void);
 
-template<typename Ret, typename... Args>
-struct function_helper<Ret(Args...) const> : function_helper<Ret(Args...)> { };
+// There is a family of functions, that recv as arg Result(*)(Args...) and result a 
+// FunctionInfo associated to the same type
+template<typename Result, typename ...Args>
+constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(*)(Args...));
 
+// Everything else is void...
+constexpr void asFunctionInfo(...);
+
+// Then: decltype(asFunctionInfo(std::declval< decltype(What) >()));
+// Creates a fake value of the given type What
+// Simulates a call to asFunctionInfo
+// Just to retrieve the type of the result... FunctionInfo<Result(Args...)>
+// if it's a function, or void otherwise
+
+// -----------------------------------------------------------------------
 //template<typename Ret, typename... Args, typename Class>
 //constexpr function_helper<Ret(Args...)> 
 //to_function_helper(Ret(Class::*)(Args...));
@@ -462,15 +477,6 @@ struct function_helper<Ret(Args...) const> : function_helper<Ret(Args...)> { };
 //template<typename Ret, typename... Args, typename Class>
 //constexpr function_helper<Ret(Args...) const>
 //to_function_helper(Ret(Class::*)(Args...) const);
-
-template<typename Ret, typename... Args>
-constexpr function_helper<Ret(Args...)>
-to_function_helper(Ret(*)(Args...));
-
-constexpr void to_function_helper(...);
-
-template<typename Candidate>
-using function_helper_t = decltype(to_function_helper(std::declval<Candidate>()));
 
 struct Invoke {
   
@@ -480,8 +486,8 @@ struct Invoke {
   struct Invokator {
     template<typename ...Args>
     inline Value invoke(Args... args) {
-      using helper_type = function_helper_t<decltype(What)>;
-      if constexpr (std::is_void_v<typename helper_type::return_type>) {
+      using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+      if constexpr (WhatInfo::return_is_void) {
         std::invoke(What, args...);
         return Value();
       }
@@ -494,26 +500,30 @@ struct Invoke {
   template<auto What>
   void set() {
     m_invoker = [](size_t n, Value* values) -> Value {
+
+      using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+      dbg("Type of func info is %d\n", WhatInfo::return_is_void);
+
       Invokator<What> real_invokator;
-      using helper_type = function_helper_t<decltype(What)>;
-      dbg("Invoker of %d vs %d\n", n, helper_type::size);
-      if constexpr (helper_type::size == 0) {
+      dbg("Invoker of %d vs %d\n", n, WhatInfo::num_args);
+
+      if constexpr (WhatInfo::num_args == 0) {
         assert(n == 0);
         return real_invokator.invoke();
       }
-      else if constexpr (helper_type::size == 1) {
+      else if constexpr (WhatInfo::num_args == 1) {
         assert(n == 1);
         return real_invokator.invoke(values[0]);
       }
-      else if constexpr (helper_type::size == 2) {
+      else if constexpr (WhatInfo::num_args == 2) {
         assert(n == 2);
         return real_invokator.invoke(values[0], values[1]);
       }
-      else if constexpr (helper_type::size == 3) {
+      else if constexpr (WhatInfo::num_args == 3) {
         assert(n == 3);
         return real_invokator.invoke(values[0], values[1], values[2]);
       }
-      else if constexpr (helper_type::size == 4) {
+      else if constexpr (WhatInfo::num_args == 4) {
         assert(n == 4);
         return real_invokator.invoke(values[0], values[1], values[2], values[3]);
       }
@@ -552,6 +562,12 @@ void fn2_void(int x, float f1, float f2) {
   dbg("At fn2(%d,%f,%f)\n", x, f1, f2);
 }
 
+struct Obj {
+  int id = 10;
+  int sum(int a, int b) {
+    return a + b + id;
+  }
+};
 
 void testFuncs() {
   Value vin = 2;
@@ -578,6 +594,18 @@ void testFuncs() {
   inv.set<fn2_void>();
   inv.invoke(1, 3.14f, 100.0f);
   dbg("Invoke return void()\n");
+
+  //using myFnType = FunctionInfo<void(int)>;
+  using myFnType2 = FunctionInfo<decltype(fn2)>;
+  dbg("Type2 of func info is %s\n", resolve<myFnType2>()->name());
+
+  //int n = myFnType::num_args;
+  //int n2 = myFnType2::num_args;
+  //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2)>::return_is_void);
+  //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2_void)>::return_is_void);
+
+
+
 }
 
 // -----------------------------------------------------------------
