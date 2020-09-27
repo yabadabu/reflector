@@ -27,7 +27,7 @@ void dumpType(const Type* t) {
 
 void dumpTypes() {
   Register::types([](const Type* t) {
-    dumpType(t); 
+    dumpType(t);
     });
 }
 
@@ -104,10 +104,10 @@ void dumpRef(Ref ref) {
     dbg("  Has member %s (%s)\n", d->name(), d->type()->name());
     });
   City* c = ref.tryAs<City>();
-  if (c) 
+  if (c)
     dbg("It's not a city...\n");
   House* h = ref.tryAs<House>();
-  if (h) 
+  if (h)
     dbg("It's a house... %d %f\n", h->life, h->size);
 }
 
@@ -115,9 +115,9 @@ struct IntRange {
   int vmin = 1;
   int vmax = 10;
   IntRange() = default;
-  IntRange( int new_vmin, int new_vmax ) 
-    : vmin( new_vmin )
-    , vmax( new_vmax ) 
+  IntRange(int new_vmin, int new_vmax)
+    : vmin(new_vmin)
+    , vmax(new_vmax)
   {}
 };
 
@@ -178,7 +178,7 @@ void testTypes() {
   city.houses[1].size = 21.0f;
   city.ids.emplace_back(99);
   city.ids.emplace_back(102);
-  
+
   // Create a separate object
   House house;
   Ref r_house(&house);
@@ -191,7 +191,7 @@ void testTypes() {
 
   // Given a Ref to a house, get access to the Life data member
   Ref r_life = r_house.get(d_life);
-  
+
   // Refs return the address of data members
   int* prev_life = r_life.as<int>();
   assert(prev_life && *prev_life == 10);
@@ -307,7 +307,7 @@ void testBase() {
   assert(rd1.type()->derivesFrom(rbase.type()));
   assert(!rd2.type()->derivesFrom(rd1.type()));
   assert(!rd1.type()->derivesFrom(rd2.type()));
-  
+
   const Data* dbase_score = resolve<Base>()->data("Score");
   Ref rbase_score = rbase.get(dbase_score);
   assert(*rbase_score.as<int>() == 10);
@@ -412,7 +412,7 @@ void testValue() {
   {
     Value v = 2;
     dumpValue(v);
-  
+
     v.set(3.13f);
     dumpValue(v);
 
@@ -460,27 +460,27 @@ struct FunctionInfo<Result(Args...)> {
 template<typename Result, typename ...Args>
 constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(*)(Args...));
 
+// A pointer to a method of a class, also returns just a dummy fn with Result and args
+template<typename Result, typename ...Args, typename UserType>
+constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...));
+
+// Also, catch if the function is a const method
+template<typename Result, typename ...Args, typename UserType>
+constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...) const);
+
 // Everything else is void...
 constexpr void asFunctionInfo(...);
 
-// Then: decltype(asFunctionInfo(std::declval< decltype(What) >()));
+// Then, the ugly expression: decltype(asFunctionInfo(std::declval< decltype(What) >()));
 // Creates a fake value of the given type What
 // Simulates a call to asFunctionInfo
 // Just to retrieve the type of the result... FunctionInfo<Result(Args...)>
 // if it's a function, or void otherwise
 
 // -----------------------------------------------------------------------
-//template<typename Ret, typename... Args, typename Class>
-//constexpr function_helper<Ret(Args...)> 
-//to_function_helper(Ret(Class::*)(Args...));
-//
-//template<typename Ret, typename... Args, typename Class>
-//constexpr function_helper<Ret(Args...) const>
-//to_function_helper(Ret(Class::*)(Args...) const);
-
 struct Invoke {
-  
-  Value (*m_invoker)(size_t n, Value* values) = nullptr;
+
+  Value(*m_invoker)(size_t n, Value* values) = nullptr;
 
   template<auto What>
   struct Invokator {
@@ -488,7 +488,7 @@ struct Invoke {
     inline Value invoke(Args... args) {
       using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
       if constexpr (WhatInfo::return_is_void) {
-        std::invoke(What, args...);
+        std::invoke(What, std::forward<Args>(args)...);
         return Value();
       }
       else {
@@ -497,10 +497,26 @@ struct Invoke {
     }
   };
 
+  template<auto What, typename UserType>
+  struct MethodInvokator {
+    template<typename ...Args>
+    inline Value invoke(UserType& user_type, Args... args) {
+      using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+      if constexpr (WhatInfo::return_is_void) {
+        std::invoke(What, user_type, std::forward<Args>(args)...);
+        return Value();
+      }
+      else {
+        return std::invoke(What, user_type, std::forward<Args>(args)...);
+      }
+    }
+  };
+
+  /*
+
   template<auto What>
   void set() {
     m_invoker = [](size_t n, Value* values) -> Value {
-
       using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
       dbg("Type of func info is %d\n", WhatInfo::return_is_void);
 
@@ -531,14 +547,54 @@ struct Invoke {
         dbg("Is invocable with other combinations!\n");
         return 0;
       }
+      return 0;
     };
 
+  }
+      */
+
+  template<auto What, typename UserType>
+  void set() {
+    if (std::is_member_function_pointer_v< decltype(What) >) {
+      m_invoker = [](size_t n, Value* values) -> Value {
+        UserType* u = values[0].ref().as<UserType>();
+        using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+
+        dbg("Type of func info is %d\n", WhatInfo::return_is_void);
+        dbg("User type %s\n", resolve<UserType>()->name());
+        //dbg("is member %d\n", std::is_member_function_pointer_v< decltype(What) >);
+
+        MethodInvokator<What, UserType> invokator;
+
+        dbg("Invoker of %d vs %d\n", n, WhatInfo::num_args);
+        if constexpr (WhatInfo::num_args == 0) {
+          return invokator.invoke(*u);
+        }
+        else if constexpr (WhatInfo::num_args == 1) {
+          return invokator.invoke(*u, values[1]);
+        }
+        else if constexpr (WhatInfo::num_args == 2) {
+          return invokator.invoke(*u, values[1], values[2]);
+        }
+        else if constexpr (WhatInfo::num_args == 3) {
+          return invokator.invoke(*u, values[1], values[2], values[3]);
+        }
+        else if constexpr (WhatInfo::num_args == 4) {
+          return invokator.invoke(*u, values[1], values[2], values[3], values[4]);
+        }
+        dbg("Is invocable with other combinations!\n");
+        return 0;
+      };
+    }
+    else {
+      // raw method
+    }
   }
 
   template<typename ...Args>
   Value invoke(Args... args) {
     // Flatten the args in an array, so we can use the common m_invoken signature
-    Value vals[1+sizeof...(Args)] = { std::forward<Args>(args)... };
+    Value vals[1 + sizeof...(Args)] = { std::forward<Args>(args)... };
     return m_invoker(sizeof...(Args), vals);
   }
 
@@ -562,14 +618,18 @@ void fn2_void(int x, float f1, float f2) {
   dbg("At fn2(%d,%f,%f)\n", x, f1, f2);
 }
 
-struct Obj {
+struct TheObj {
   int id = 10;
   int sum(int a, int b) {
     return a + b + id;
   }
+  int doble(int a) const {
+    return a * 2 + id;
+  }
 };
 
 void testFuncs() {
+  /*
   Value vin = 2;
   Value vin_f = 2.1f;
   Value vout = fn1(vin, vin_f);
@@ -603,8 +663,18 @@ void testFuncs() {
   //int n2 = myFnType2::num_args;
   //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2)>::return_is_void);
   //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2_void)>::return_is_void);
+  */
 
+  Invoke obj_inv;
+  obj_inv.set<&TheObj::sum, TheObj>();
+  TheObj the_obj;
+  Value v = the_obj;
+  int added = obj_inv.invoke(v, 10, 11);
+  assert(added == 31);
 
+  obj_inv.set<&TheObj::doble, TheObj>();
+  int doble = obj_inv.invoke(v, 11);
+  assert(doble == 32);
 
 }
 
