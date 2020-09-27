@@ -442,6 +442,36 @@ void testValue() {
   dbg("Value tests end...\n");
 }
 
+// -----------------------------------------------------------------------
+template<typename>
+struct function_helper;
+
+template<typename Ret, typename... Args>
+struct function_helper<Ret(Args...)> {
+  using return_type = std::remove_cv_t<std::remove_reference_t<Ret>>;
+  static constexpr auto size = sizeof...(Args);
+};
+
+template<typename Ret, typename... Args>
+struct function_helper<Ret(Args...) const> : function_helper<Ret(Args...)> { };
+
+//template<typename Ret, typename... Args, typename Class>
+//constexpr function_helper<Ret(Args...)> 
+//to_function_helper(Ret(Class::*)(Args...));
+//
+//template<typename Ret, typename... Args, typename Class>
+//constexpr function_helper<Ret(Args...) const>
+//to_function_helper(Ret(Class::*)(Args...) const);
+
+template<typename Ret, typename... Args>
+constexpr function_helper<Ret(Args...)>
+to_function_helper(Ret(*)(Args...));
+
+constexpr void to_function_helper(...);
+
+template<typename Candidate>
+using function_helper_t = decltype(to_function_helper(std::declval<Candidate>()));
+
 struct Invoke {
   
   Value (*m_invoker)(size_t n, Value* values) = nullptr;
@@ -450,7 +480,14 @@ struct Invoke {
   struct Invokator {
     template<typename ...Args>
     inline Value invoke(Args... args) {
-      return std::invoke(What, args...);
+      using helper_type = function_helper_t<decltype(What)>;
+      if constexpr (std::is_void_v<typename helper_type::return_type>) {
+        std::invoke(What, args...);
+        return Value();
+      }
+      else {
+        return std::invoke(What, std::forward<Args>(args)...);
+      }
     }
   };
 
@@ -458,23 +495,25 @@ struct Invoke {
   void set() {
     m_invoker = [](size_t n, Value* values) -> Value {
       Invokator<What> real_invokator;
-      if constexpr (std::is_invocable_v<decltype(What)>) {
+      using helper_type = function_helper_t<decltype(What)>;
+      dbg("Invoker of %d vs %d\n", n, helper_type::size);
+      if constexpr (helper_type::size == 0) {
         assert(n == 0);
         return real_invokator.invoke();
       }
-      else if constexpr (std::is_invocable_v<decltype(What), Value>) {
+      else if constexpr (helper_type::size == 1) {
         assert(n == 1);
         return real_invokator.invoke(values[0]);
       }
-      else if constexpr (std::is_invocable_v<decltype(What), Value, Value>) {
+      else if constexpr (helper_type::size == 2) {
         assert(n == 2);
         return real_invokator.invoke(values[0], values[1]);
       }
-      else if constexpr (std::is_invocable_v<decltype(What), Value, Value, Value>) {
+      else if constexpr (helper_type::size == 3) {
         assert(n == 3);
         return real_invokator.invoke(values[0], values[1], values[2]);
       }
-      else if constexpr (std::is_invocable_v<decltype(What), Value, Value, Value, Value>) {
+      else if constexpr (helper_type::size == 4) {
         assert(n == 4);
         return real_invokator.invoke(values[0], values[1], values[2], values[3]);
       }
@@ -489,15 +528,15 @@ struct Invoke {
   template<typename ...Args>
   Value invoke(Args... args) {
     // Flatten the args in an array, so we can use the common m_invoken signature
-    Value vals[1+sizeof...(Args)] = { args... };
+    Value vals[1+sizeof...(Args)] = { std::forward<Args>(args)... };
     return m_invoker(sizeof...(Args), vals);
   }
 
 };
 
-//void fn0() {
-//  dbg("At fn0. Returning nothing\n");
-//}
+void fn0() {
+  dbg("At fn0. Returning nothing\n");
+}
 
 int fn1(int x, float f) {
   dbg("At fn1(%d,%f)\n", x, f);
@@ -507,6 +546,10 @@ int fn1(int x, float f) {
 float fn2(int x, float f1, float f2) {
   dbg("At fn2(%d,%f,%f)\n", x, f1, f2);
   return x + f1 + f2;
+}
+
+void fn2_void(int x, float f1, float f2) {
+  dbg("At fn2(%d,%f,%f)\n", x, f1, f2);
 }
 
 
@@ -525,9 +568,16 @@ void testFuncs() {
   float f = inv.invoke(vin, vin_f, vin_f);
   dbg("Invoke(i,f,f) returned %f\n", f);
 
-  //inv.set<fn0>();
-  //inv.invoke();
-  //dbg("Invoke()\n");
+  bool r0 = std::is_same_v<void, std::invoke_result_t<decltype(fn0)>>;
+  dbg("R0 is %d\n", r0);
+
+  inv.set<fn0>();
+  inv.invoke();
+  dbg("Invoke()\n");
+
+  inv.set<fn2_void>();
+  inv.invoke(1, 3.14f, 100.0f);
+  dbg("Invoke return void()\n");
 }
 
 // -----------------------------------------------------------------
