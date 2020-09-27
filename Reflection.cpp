@@ -421,6 +421,9 @@ void testValue() {
       dbg("About to destroy the House object...\n");
     }
     dumpValue(v);
+    House* h2 = v.ref().as<House>();
+    h2->life = 999;
+    h2->size = 111;
 
     Value v2 = v;
     dumpValue(v2);

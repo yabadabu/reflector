@@ -459,85 +459,31 @@ namespace REFLECTOR_NAMESPACE {
   }
 
   // ------------------------------
+  // Will not call dtos, ctor, copy_ctors, move_semantics
+  // So, use it only for POD's
   class Value {
     const Type* m_type = nullptr;
     std::vector< uint8_t > m_data;
-    void (*m_dtor)(void*) = nullptr;
-    void (*m_copy)(void* dst, const void* src) = nullptr;
-
-    void reset() {
-      if (m_dtor) {
-        assert(m_type);
-        if (m_data.size())
-          (*m_dtor)(m_data.data());
-        m_type = nullptr;
-        m_dtor = nullptr;
-      }
-    }
-
-    void* alloc(size_t n) {
-      void* old_storage = m_data.empty() ? nullptr : m_data.data();
-      m_data.resize(n);
-      void* storage = m_data.data();
-      printf("Value init at %p (from %p)\n", storage, old_storage);
-      return storage;
-    }
 
   public:
     const Type* type() const { return m_type; }
     bool isValid() const { return m_type && !m_data.empty(); }
     Value() = default;
 
-    Value(const Value& other) {
-      m_type = other.type();
-      void* storage = alloc(other.m_data.size());
-      m_dtor = other.m_dtor;
-      m_copy = other.m_copy;
-      (*m_copy)(storage, other.m_data.data());
-    }
-
-    void operator=( const Value& other ) {
-      reset();
-      m_type = other.type();
-      void* storage = alloc(other.m_data.size());
-      m_dtor = other.m_dtor;
-      m_copy = other.m_copy;
-      (*m_copy)(storage, other.m_data.data());
-      printf("At Value.operator%p= %p\n", storage, other.m_data.data());
-    }
-
     template<typename T>
     Value(const T& new_value) {
       set(new_value);
     }
 
-    ~Value() {
-      reset();
-    }
-
     template<typename T>
     void set(const T& new_value) {
-      // delete old type?
-      reset();
-      
-      // forget about the old type
       m_type = resolve<T>();
-      void* storage = alloc(sizeof(T));
-
-      T* n = new (storage) T(new_value);
-      m_dtor = [](void* p) {
-        T* obj = reinterpret_cast<T*>(p);
-        obj->~T();
-      };
-      m_copy = [](void* dst, const void* src) {
-        const T* obj_src = reinterpret_cast<const T*>(src);
-        T* obj_dst = reinterpret_cast<T*>(dst);
-        *obj_dst = T(*obj_src);
-      };
+      m_data.resize(sizeof(T));
+      new (m_data.data()) T(new_value);
     }
 
     template< typename T>
-    T get() {
+    const T& get() {
       assert(m_type == resolve<T>());
       return *reinterpret_cast<T>(m_data.data());
     }
