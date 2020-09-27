@@ -59,6 +59,27 @@ struct House {
   bool operator==(const House& h) const {
     return h.life == life && h.size == size;
   }
+  ~House() {
+    dbg("House destroyed %p..\n", this);
+  }
+  House() {
+    dbg("House ctor-constructed %p..\n", this);
+  }
+  House(const House& other) noexcept {
+    life = other.life;
+    size = other.size;
+    dbg("House copy-constructed %p from %p..\n", this, &other);
+  }
+  House(House&& other) noexcept {
+    life = other.life;
+    size = other.size;
+    dbg("House move-constructed %p from %p..\n", this, &other);
+  }
+  void operator=(const House& other) noexcept {
+    life = other.life;
+    size = other.size;
+    dbg("House op= %p from %p..\n", this, &other);
+  }
 };
 
 typedef std::vector<int> IDs;
@@ -149,8 +170,10 @@ void testTypes() {
   // Create a dummy object
   City city;
   city.houses.resize(2);
-  city.houses[0] = House{ 10,20.f };
-  city.houses[1] = House{ 11,21.f };
+  city.houses[0].life = 10;
+  city.houses[0].size = 20.0f;
+  city.houses[1].life = 11;
+  city.houses[1].size = 21.0f;
   city.ids.emplace_back(99);
   city.ids.emplace_back(102);
   
@@ -374,6 +397,37 @@ void testBase() {
   assert(derived1c.speed == 31);    // Speed field has not been modified
 }
 
+void dumpValue(const Value& v) {
+  json j;
+  dbg("v has type %s and data %p\n", v.type()->name(), v.ref().rawAddr());
+  toJson(j, v.ref());
+  dbg("  has value %s\n", j.dump().c_str());
+}
+
+void testValue() {
+  dbg("Value tests begin...\n");
+  dbg("sizeof(Value) = %ld\n", sizeof(Value));
+  {
+    Value v = 2;
+    dumpValue(v);
+  
+    v.set(3.13f);
+    dumpValue(v);
+
+    {
+      dbg("Creating a House object...\n");
+      House h;
+      v = h;
+      dbg("About to destroy the House object...\n");
+    }
+    dumpValue(v);
+
+    Value v2 = v;
+    dumpValue(v2);
+  }
+  dbg("Value tests end...\n");
+}
+
 // -----------------------------------------------------------------
 void myDbgHandler(const char* txt) {
   printf("%s", txt);
@@ -397,4 +451,5 @@ int main()
   testTypes();
   testBase();
   dumpTypes();
+  testValue();
 }
