@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cassert>
-#include <functional>
+#include <vector>
 
 #ifndef REFLECTOR_ERROR
 #define REFLECTOR_ERROR fatal
@@ -14,7 +14,6 @@
 #ifndef REFLECTOR_NAMESPACE
 #define REFLECTOR_NAMESPACE Reflector
 #endif
-
 
 extern int REFLECTOR_ERROR(const char* fmt, ...);
 
@@ -69,9 +68,8 @@ namespace REFLECTOR_NAMESPACE {
     const Type* m_type = nullptr;
     const Type* m_parent = nullptr;
     bool        m_registered = false;
-
-    std::function<void(void* owner, const void* new_value)> m_setter;
-    std::function<void* (void* owner)>                      m_getter;
+    void      (*m_setter)(void* owner, const void* new_value) = nullptr;
+    void*     (*m_getter)(void* owner) = nullptr;
 
   public:
 
@@ -93,7 +91,7 @@ namespace REFLECTOR_NAMESPACE {
     bool        m_registered = false;
 
     // Current support is just dummy methods with no args/no return values
-    std::function<void(void* owner)> m_invoker;
+    void      (*m_invoker)(void* owner) = nullptr;
 
   public:
 
