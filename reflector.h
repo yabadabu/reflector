@@ -450,10 +450,21 @@ namespace REFLECTOR_NAMESPACE {
       return get<T>();
     }
 
+    template<typename T>
+    operator T& () {
+      return get<T>();
+    }
+
     template< typename T>
     const T& get() const {
       assert(m_type == resolve<T>());
       return *reinterpret_cast<const T*>((const void*)m_data.data());
+    }
+
+    template< typename T>
+    T& get() {
+      assert(m_type == resolve<T>());
+      return *reinterpret_cast<T*>((void*)m_data.data());
     }
 
     Ref ref() const {
