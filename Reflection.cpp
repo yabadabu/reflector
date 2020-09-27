@@ -442,18 +442,73 @@ void testValue() {
   dbg("Value tests end...\n");
 }
 
+struct Invoke {
+  
+  Value (*m_invoker)(size_t n, Value* values) = nullptr;
+
+  template<auto What>
+  struct Invokator {
+    template<typename ...Args>
+    inline Value invoke(Args... args) {
+      return std::invoke(What, args...);
+    }
+  };
+
+  template<auto What>
+  void set() {
+    m_invoker = [](size_t n, Value* values) -> Value {
+      Invokator<What> real_invokator;
+      if constexpr (std::is_invocable_v<decltype(What)>) {
+        assert(n == 0);
+        return real_invokator.invoke();
+      }
+      else if constexpr (std::is_invocable_v<decltype(What), Value>) {
+        assert(n == 1);
+        return real_invokator.invoke(values[0]);
+      }
+      else if constexpr (std::is_invocable_v<decltype(What), Value, Value>) {
+        assert(n == 2);
+        return real_invokator.invoke(values[0], values[1]);
+      }
+      else if constexpr (std::is_invocable_v<decltype(What), Value, Value, Value>) {
+        assert(n == 3);
+        return real_invokator.invoke(values[0], values[1], values[2]);
+      }
+      else if constexpr (std::is_invocable_v<decltype(What), Value, Value, Value, Value>) {
+        assert(n == 4);
+        return real_invokator.invoke(values[0], values[1], values[2], values[3]);
+      }
+      else {
+        dbg("Is invocable with other combinations!\n");
+        return 0;
+      }
+    };
+
+  }
+
+  template<typename ...Args>
+  Value invoke(Args... args) {
+    // Flatten the args in an array, so we can use the common m_invoken signature
+    Value vals[1+sizeof...(Args)] = { args... };
+    return m_invoker(sizeof...(Args), vals);
+  }
+
+};
+
+//void fn0() {
+//  dbg("At fn0. Returning nothing\n");
+//}
+
 int fn1(int x, float f) {
   dbg("At fn1(%d,%f)\n", x, f);
   return x + 1;
 }
 
-template<auto What>
-struct Invokator {
-  template<typename ...Args>
-  Value invoke(Args... args) {
-    return std::invoke(What, args...);
-  }
-};
+float fn2(int x, float f1, float f2) {
+  dbg("At fn2(%d,%f,%f)\n", x, f1, f2);
+  return x + f1 + f2;
+}
+
 
 void testFuncs() {
   Value vin = 2;
@@ -461,9 +516,18 @@ void testFuncs() {
   Value vout = fn1(vin, vin_f);
   dumpValue(vout);
 
-  Invokator<fn1> inv;
+  Invoke inv;
+  inv.set<fn1>();
   int k = inv.invoke(vin, vin_f);
   dbg("Invoke returned %d\n", k);
+
+  inv.set<fn2>();
+  float f = inv.invoke(vin, vin_f, vin_f);
+  dbg("Invoke(i,f,f) returned %f\n", f);
+
+  //inv.set<fn0>();
+  //inv.invoke();
+  //dbg("Invoke()\n");
 }
 
 // -----------------------------------------------------------------
