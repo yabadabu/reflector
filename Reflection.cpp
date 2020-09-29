@@ -4,7 +4,10 @@
 #include "reflector.h"
 using namespace Reflector;
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
+
 #include "utils.h"
 
 void dumpProps(const PropsContainer& props_container) {
@@ -666,14 +669,20 @@ void testFuncs() {
 // -----------------------------------------------------------------
 void myDbgHandler(const char* txt) {
   printf("%s", txt);
+  #ifdef PLATFORM_WINDOWS
   ::OutputDebugString(txt);
+  #endif
 }
 
 void myFatalHandler(const char* txt) {
   myDbgHandler(txt);
+  #ifdef PLATFORM_WINDOWS
   if (MessageBox(nullptr, txt, "Error", MB_RETRYCANCEL) == IDCANCEL) {
     __debugbreak();
   }
+  #else
+    exit(-1);
+  #endif
 }
 
 int main()

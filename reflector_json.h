@@ -41,7 +41,7 @@ namespace REFLECTOR_NAMESPACE {
       const Container& container = *r.as<Container>();
       j = json::array();
       size_t idx = 0;
-      for (auto& item : container) {
+      while( idx < container.size() ) {
         json jitem;
         toJson(jitem, &container[idx]);
         j[idx] = std::move(jitem);
