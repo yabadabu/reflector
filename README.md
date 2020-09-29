@@ -16,6 +16,8 @@ This is my reduced toy version from the awesome https://github.com/skypjack/meta
     You can create Ref from the address of a typed C++ object.
 - Copy values between refs
 - Base class.
+- Value as a container, not a reference
+- Can reflect methods, by converting all args and return to Values
 
 # Requirements
 - C++ 17
@@ -76,9 +78,12 @@ assert( your_house.size == my_house.size );
 - [x] Confirm json of enums work
 - [x] base class, derived class
 - [x] Allow customization to export to dll's, namespace and error msgs
+- [x] Can call methods given a Ref()
+- [x] Confirm compiles without errors in OSX
 
 ## ToDo
 
+- [ ] Convert `const Data*` to DataPtr and `const Type*` to TypePtr o something similar
 - [ ] More examples
 - [ ] I/O ImGui
 - [ ] I/O Binary
