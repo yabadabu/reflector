@@ -66,8 +66,8 @@ namespace REFLECTOR_NAMESPACE {
 
     template<typename> friend struct Factory;
     friend class Ref;
-
     friend class Type;
+
     const char* m_name = "unknown_data_name";
     const Type* m_type = nullptr;
     const Type* m_parent = nullptr;
@@ -149,7 +149,7 @@ namespace REFLECTOR_NAMESPACE {
   };
 
   // --------------------------------------------
-  // The global registry...
+  // The global registry of types
   namespace Register {
 
     REFLECTOR_API void addType(Type* new_type);
@@ -171,6 +171,7 @@ namespace REFLECTOR_NAMESPACE {
   // --------------------------------------------
   // Create an internal namespace to hide some details
   namespace details {
+
     template< typename UserType >
     REFLECTOR_API Type* resolve() noexcept {
       static Type user_type("TypeNameUnknown");
@@ -225,7 +226,6 @@ namespace REFLECTOR_NAMESPACE {
     return details::resolve< std::decay_t<UserType> >();
   };
  
-
   // Global function entry to start defining new types
   template< typename UserType, typename... Property>
   Factory<UserType>& reflect(const char* name, Property &&... property) noexcept {
@@ -306,11 +306,6 @@ namespace REFLECTOR_NAMESPACE {
     }
 
     Ref ref() const;
-    //   Ref r;
-    //   r.m_addr = (void*)m_data.data();
-    //   r.m_type = m_type;
-    //   return r;
-    // }
   };
 
   // ----------------------------------------
@@ -323,7 +318,7 @@ namespace REFLECTOR_NAMESPACE {
     const Type* m_parent = nullptr;
     bool        m_registered = false;
 
-    // The common signature returns a 'Value' and receives an array of 'Values'
+    // The common signature returns a 'Value', received the address of a obj and an array of 'Values'
     Value     (*m_invoker)(void* obj, size_t num_values, Value* values) = nullptr;
 
     template<auto What>
@@ -369,6 +364,7 @@ namespace REFLECTOR_NAMESPACE {
           }
           else
           {
+            REFLECTOR_ERROR("Calling a func with more arguments (%d) than expected (4)\n", WhatInfo::num_args);
           }
           return 0;
         };
@@ -419,7 +415,7 @@ namespace REFLECTOR_NAMESPACE {
       return m_type->derivesFrom(resolve<UserType>()) ? reinterpret_cast<UserType*>(m_addr) : nullptr;
     }
 
-    // Will assert
+    // Will assert if the conversion fails
     template< typename UserType>
     inline UserType* as() {
       assert(m_type->derivesFrom(resolve<UserType>()) || REFLECTOR_ERROR("Failed runtime conversion from current type %s to requested type %s\n", m_type->name(), resolve<UserType>()->name()));
