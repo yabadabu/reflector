@@ -24,6 +24,7 @@ void myFatalHandler(const char* txt) {
     __debugbreak();
   }
   #else
+    assert(false);
     exit(-1);
   #endif
 }

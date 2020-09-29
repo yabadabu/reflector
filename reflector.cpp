@@ -11,6 +11,13 @@ namespace REFLECTOR_NAMESPACE {
       return m_parent->func(func_name);
     return nullptr;
   }
+  
+  Ref Value::ref() const {
+    Ref r;
+    r.m_addr = (void*)m_data.data();
+    r.m_type = m_type;
+    return r;
+  }
 
   namespace Register {
 

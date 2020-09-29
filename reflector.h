@@ -25,6 +25,7 @@ namespace REFLECTOR_NAMESPACE {
   class Data;
   class Ref;
   class Func;
+  class Value;
 
   template< typename T >
   struct Factory;
@@ -82,7 +83,6 @@ namespace REFLECTOR_NAMESPACE {
 
     void setName(const char* new_name) { m_name = new_name; }
   };
-
 
   // ----------------------------------------
   // Type definition
@@ -176,6 +176,45 @@ namespace REFLECTOR_NAMESPACE {
       static Type user_type("TypeNameUnknown");
       return &user_type;
     };
+
+    // ------------------------------------------------------------------
+    // All this chunk of code to be able to retrieve, given a function,
+    // the number of arguments and if it returns void
+    template <typename Fn>
+    struct FunctionInfo;
+
+    // This works for global functions, but not directly for member functions
+    // used as template arguments
+    template <typename Result, typename ...Args>
+    struct FunctionInfo<Result(Args...)> {
+      using ResultType = std::decay_t<Result>;
+      static constexpr size_t num_args = sizeof...(Args);
+      static constexpr bool return_is_void = std::is_same_v<void, ResultType>;
+    };
+    //  FunctionInfo<decltype( __a_real_function__ )>::return_is_void);
+
+    // There is a family of functions, that recv as arg Result(*)(Args...) and result a 
+    // FunctionInfo associated to the same type
+    template<typename Result, typename ...Args>
+    constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(*)(Args...));
+
+    // A pointer to a method of a class, also returns just a dummy fn with Result and args
+    template<typename Result, typename ...Args, typename UserType>
+    constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...));
+
+    // Also, catch if the function is a const method
+    template<typename Result, typename ...Args, typename UserType>
+    constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...) const);
+
+    // Everything else is void...
+    constexpr void asFunctionInfo(...);
+
+    // Then, the ugly expression: decltype(asFunctionInfo(std::declval< decltype(What) >()));
+    // Creates a fake value of the given type What
+    // Simulates a call to asFunctionInfo
+    // Just to retrieve the type of the result... FunctionInfo<Result(Args...)>
+    // if it's a function, or void otherwise
+    // ------------------------------------------------------------------
   }
 
   // --------------------------------------------
@@ -186,68 +225,6 @@ namespace REFLECTOR_NAMESPACE {
     return details::resolve< std::decay_t<UserType> >();
   };
  
-  // --------------------------------------------
-  template< typename MainType >
-  struct Factory {
-    Type* the_type = nullptr;
-
-    template< auto Member, typename... Property>
-    Factory<MainType>& data(const char* name, Property &&... property) noexcept {
-
-      assert(the_type);
-
-      // Member is:                        int Factory::*
-      // decltype(MainType().*Member) is:  int&&
-      typedef typename std::remove_reference_t<decltype(MainType().*Member)> Type;
-
-      static Data user_data;
-
-      assert(!user_data.m_registered || REFLECTOR_ERROR("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
-      user_data.m_name = name;
-      user_data.m_type = resolve<Type>();
-      user_data.m_parent = the_type;
-      user_data.m_registered = true;
-      user_data.m_setter = [](void* owner, const void* new_value) {
-        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
-        const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
-        typed_owner->*Member = *typed_new_value;
-      };
-      user_data.m_getter = [](void* owner) -> void* {
-        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
-        return &(typed_owner->*Member);
-      };
-      user_data.initProp(std::forward<Property>(property)...);
-
-      assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
-
-      the_type->m_datas.push_back(&user_data);
-      return *this;
-    }
-
-    template< typename BaseType >
-    Factory<MainType>& base() noexcept {
-      assert(the_type);
-
-      const Type* base_type = resolve<BaseType>();
-      
-      // Already set to the same type. skip and don't complain
-      if (base_type == the_type->m_parent)
-        return *this;
-
-      assert(!the_type->m_parent
-        || REFLECTOR_ERROR("Can't set base class for %s to %s. It's already defined to be %s.", the_type->name(), base_type->name(), the_type->m_parent->name()));
-
-      the_type->m_parent = base_type;
-      return *this;
-    }
-
-    template<typename Method>
-    Factory<MainType>& func(const char* name) noexcept {
-
-      return *this;
-    }
-
-  };
 
   // Global function entry to start defining new types
   template< typename UserType, typename... Property>
@@ -280,6 +257,132 @@ namespace REFLECTOR_NAMESPACE {
   void unregisterType() {
     Register::delType(resolve<T>());
   }
+
+  // ------------------------------
+  // Will not call dtos, ctor, copy_ctors, move_semantics
+  // So, use it only for POD's
+  class Value {
+    const Type* m_type = nullptr;
+    std::vector< uint8_t > m_data;
+
+  public:
+    const Type* type() const { return m_type; }
+    bool isValid() const { return m_type && !m_data.empty(); }
+    Value() = default;
+
+    template<typename T>
+    Value(const T& new_value) {
+      set(new_value);
+    }
+
+    template<typename T>
+    void set(const T& new_value) {
+      m_type = resolve<T>();
+      m_data.resize(sizeof(T));
+      new (m_data.data()) T(new_value);
+    }
+
+    template<typename T>
+    operator const T& () const {
+      return get<T>();
+    }
+
+    template<typename T>
+    operator T& () {
+      return get<T>();
+    }
+
+    template< typename T>
+    const T& get() const {
+      assert(m_type == resolve<T>());
+      return *reinterpret_cast<const T*>((const void*)m_data.data());
+    }
+
+    template< typename T>
+    T& get() {
+      assert(m_type || REFLECTOR_ERROR("Requesting conversion to type %s for an empty Value\n", resolve<T>()->name()));
+      assert(m_type == resolve<T>() || REFLECTOR_ERROR("Getting the value as type %s, but Value has type %s\n", resolve<T>()->name(), m_type->name()));
+      return *reinterpret_cast<T*>((void*)m_data.data());
+    }
+
+    Ref ref() const;
+    //   Ref r;
+    //   r.m_addr = (void*)m_data.data();
+    //   r.m_type = m_type;
+    //   return r;
+    // }
+  };
+
+  // ----------------------------------------
+  class Func {
+
+    template<typename> friend struct Factory;
+    friend class Ref;
+
+    const char* m_name = "unknown_func_name";
+    const Type* m_parent = nullptr;
+    bool        m_registered = false;
+
+    // The common signature returns a 'Value' and receives an array of 'Values'
+    Value     (*m_invoker)(size_t num_values, Value* values) = nullptr;
+
+    template<auto What>
+    struct Invokator {
+      template<typename ...Args>
+      inline Value invoke(Args... args) {
+        // Not strictly required, but allow to differenciate between the non-void result
+        // and the void result for any number of arguments...
+        using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
+        if constexpr (WhatInfo::return_is_void) {
+          std::invoke(What, std::forward<Args>(args)...);
+          return Value();
+        }
+        else {
+          return std::invoke(What, std::forward<Args>(args)...);
+        }
+      }
+    };
+
+    // m_invoker, which has a common signature, is initialized to call method What from
+    // UserType 
+    template<auto What, typename UserType>
+    void set() {
+      if (std::is_member_function_pointer_v< decltype(What) >) {
+        m_invoker = [](size_t n, Value* values) -> Value {
+          UserType& u = values[0];
+          using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
+          Invokator<What> invokator;
+          if constexpr (WhatInfo::num_args == 0) {
+            return invokator.invoke(u);
+          }
+          else if constexpr (WhatInfo::num_args == 1) {
+            return invokator.invoke(u, values[1]);
+          }
+          else if constexpr (WhatInfo::num_args == 2) {
+            return invokator.invoke(u, values[1], values[2]);
+          }
+          else if constexpr (WhatInfo::num_args == 3) {
+            return invokator.invoke(u, values[1], values[2], values[3]);
+          }
+          else if constexpr (WhatInfo::num_args == 4) {
+            return invokator.invoke(u, values[1], values[2], values[3], values[4]);
+          }
+          else
+          {
+          }
+          return 0;
+        };
+      }
+      else {
+        // raw method
+      }
+    }
+
+  public:
+
+    inline const char* name()   const { return m_name; }
+    inline const Type* parent() const { return m_parent; }
+  };
 
   // -------------------------------------------
   // A Ref is a pair of pointers: address + type_info
@@ -378,17 +481,22 @@ namespace REFLECTOR_NAMESPACE {
     }
 
     // -----------------------------------------
-    void invoke(const char* func_name) const {
+    // Convert the func_name to func_object to do the real call
+    template<typename ...Args>
+    Value invoke(const char* func_name, Args... args) const {
       const Func* f = type()->func(func_name);
       assert(f || REFLECTOR_ERROR("Function %s is not defined for type %s\n", func_name, type()->name()));
-      invoke(f);
+      return invoke(f, std::forward<Args>(args)...);
     }
 
-    void invoke(const Func* f) const {
-      //assert(f);
-      //assert(isValid());
+    template<typename ...Args>
+    Value invoke(const Func* f, Args... args) const {
+      assert(f);
+      assert(isValid());
       //assert(m_type->derivesFrom( f->parent() ) || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
-      //f->m_invoker(m_addr);
+      // Flatten the args in an array, so we can use the common m_invoker signature
+      Value vals[1 + sizeof...(Args)] = { std::forward<Args>(args)... };
+      return f->m_invoker(sizeof...(Args), vals);
     }
 
     // -----------------------------------------
@@ -398,7 +506,6 @@ namespace REFLECTOR_NAMESPACE {
       r.m_type = type()->parent();
       return r;
     }
-
 
   };
 
@@ -429,98 +536,78 @@ namespace REFLECTOR_NAMESPACE {
       fn(p);
   }
 
-  // ------------------------------
-  // Will not call dtos, ctor, copy_ctors, move_semantics
-  // So, use it only for POD's
-  class Value {
-    const Type* m_type = nullptr;
-    std::vector< uint8_t > m_data;
+  // --------------------------------------------
+  template< typename MainType >
+  struct Factory {
+    Type* the_type = nullptr;
 
-  public:
-    const Type* type() const { return m_type; }
-    bool isValid() const { return m_type && !m_data.empty(); }
-    Value() = default;
+    template< auto Member, typename... Property>
+    Factory<MainType>& data(const char* name, Property &&... property) noexcept {
 
-    template<typename T>
-    Value(const T& new_value) {
-      set(new_value);
+      assert(the_type);
+
+      // Member is:                        int Factory::*
+      // decltype(MainType().*Member) is:  int&&
+      typedef typename std::remove_reference_t<decltype(MainType().*Member)> Type;
+
+      static Data user_data;
+
+      assert(!user_data.m_registered || REFLECTOR_ERROR("data(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_data.name()));
+      user_data.m_name = name;
+      user_data.m_type = resolve<Type>();
+      user_data.m_parent = the_type;
+      user_data.m_registered = true;
+      user_data.m_setter = [](void* owner, const void* new_value) {
+        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
+        const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
+        typed_owner->*Member = *typed_new_value;
+      };
+      user_data.m_getter = [](void* owner) -> void* {
+        MainType* typed_owner = reinterpret_cast<MainType*>(owner);
+        return &(typed_owner->*Member);
+      };
+      user_data.initProp(std::forward<Property>(property)...);
+
+      assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
+
+      the_type->m_datas.push_back(&user_data);
+      return *this;
     }
 
-    template<typename T>
-    void set(const T& new_value) {
-      m_type = resolve<T>();
-      m_data.resize(sizeof(T));
-      new (m_data.data()) T(new_value);
+    template< typename BaseType >
+    Factory<MainType>& base() noexcept {
+      assert(the_type);
+
+      const Type* base_type = resolve<BaseType>();
+      
+      // Already set to the same type. skip and don't complain
+      if (base_type == the_type->m_parent)
+        return *this;
+
+      assert(!the_type->m_parent
+        || REFLECTOR_ERROR("Can't set base class for %s to %s. It's already defined to be %s.", the_type->name(), base_type->name(), the_type->m_parent->name()));
+
+      the_type->m_parent = base_type;
+      return *this;
     }
 
-    template<typename T>
-    operator const T& () const {
-      return get<T>();
+    template<auto Method>
+    Factory<MainType>& func(const char* name) noexcept {
+
+      static Func user_func;
+      assert(!user_func.m_registered || REFLECTOR_ERROR("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
+      user_func.m_name = name;
+      user_func.m_registered = true;
+      user_func.m_parent = the_type;
+      user_func.set<Method,MainType>();
+
+      the_type->m_funcs.push_back(&user_func);
+
+      return *this;
+
     }
 
-    template<typename T>
-    operator T& () {
-      return get<T>();
-    }
-
-    template< typename T>
-    const T& get() const {
-      assert(m_type == resolve<T>());
-      return *reinterpret_cast<const T*>((const void*)m_data.data());
-    }
-
-    template< typename T>
-    T& get() {
-      assert(m_type == resolve<T>());
-      return *reinterpret_cast<T*>((void*)m_data.data());
-    }
-
-    Ref ref() const {
-      Ref r;
-      r.m_addr = (void*)m_data.data();
-      r.m_type = m_type;
-      return r;
-    }
   };
-
-  // ----------------------------------------
-  class Func {
-
-    template<typename> friend struct Factory;
-    friend class Ref;
-
-    const char* m_name = "unknown_func_name";
-    const Type* m_parent = nullptr;
-    bool        m_registered = false;
-
-    // Current support is just dummy methods with no args/no return values
-    void      (*m_invoker)(void* owner) = nullptr;
-
-  public:
-
-    inline const char* name()   const { return m_name; }
-    inline const Type* parent() const { return m_parent; }
-  };
-
-  /*
-  template< auto Method>
-  Factory<MainType>& Factory::func(const char* name) noexcept {
-
-    static Func user_func;
-    assert(!user_func.m_registered || REFLECTOR_ERROR("func(%s) is already defined in type %s, with name %s\n", name, the_type->name(), user_func.name()));
-    user_func.m_name = name;
-    user_func.m_registered = true;
-    user_func.m_parent = the_type;
-    user_func.m_invoker = [](void* owner) {
-      MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
-      std::invoke(Method, typed_owner);
-    };
-
-    the_type->m_funcs.push_back(&user_func);
-
-    return *this;
-  }
-  */
 
 }
 

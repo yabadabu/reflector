@@ -154,13 +154,13 @@ void registerTypes() {
     .data<&City::houses>("houses")
     .data<&City::ids>("ids")
     .data<&City::size>("size")
-    //.func<&City::render>("Render")
+    .func<&City::render>("Render")
     ;
 
   reflect<House>("House")
     .data<&House::life>("Life")
     .data<&House::size>("Size")
-    //.func<&House::render>("Render")
+    .func<&House::render>("Render")
     ;
 
 }
@@ -208,8 +208,8 @@ void testTypes() {
   assert(new_life == 5);
 
   // Call to method Render using a reference
-  //r_house.invoke("Render");
-  //Ref(&city).invoke("Render");
+  // r_house.invoke("Render");
+  Ref(&city).invoke("Render");
 
   assert(resolve<double>());
 
@@ -442,39 +442,6 @@ void testValue() {
 }
 
 
-// ------------------------------------------------------------------
-template <typename Fn>
-struct FunctionInfo;
-
-template <typename Result, typename ...Args>
-struct FunctionInfo<Result(Args...)> {
-  using ResultType = std::decay_t<Result>;
-  static constexpr size_t num_args = sizeof...(Args);
-  static constexpr bool return_is_void = std::is_same_v<void, ResultType>;
-};
-//  FunctionInfo<decltype( __a_real_function__ )>::return_is_void);
-
-// There is a family of functions, that recv as arg Result(*)(Args...) and result a 
-// FunctionInfo associated to the same type
-template<typename Result, typename ...Args>
-constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(*)(Args...));
-
-// A pointer to a method of a class, also returns just a dummy fn with Result and args
-template<typename Result, typename ...Args, typename UserType>
-constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...));
-
-// Also, catch if the function is a const method
-template<typename Result, typename ...Args, typename UserType>
-constexpr FunctionInfo<Result(Args...)> asFunctionInfo(Result(UserType::*)(Args...) const);
-
-// Everything else is void...
-constexpr void asFunctionInfo(...);
-
-// Then, the ugly expression: decltype(asFunctionInfo(std::declval< decltype(What) >()));
-// Creates a fake value of the given type What
-// Simulates a call to asFunctionInfo
-// Just to retrieve the type of the result... FunctionInfo<Result(Args...)>
-// if it's a function, or void otherwise
 
 // -----------------------------------------------------------------------
 struct Invoke {
@@ -487,7 +454,7 @@ struct Invoke {
     inline Value invoke(Args... args) {
       // Not strictly required, but allow to differenciate between the non-void result
       // and the void result for any number of arguments...
-      using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+      using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
       if constexpr (WhatInfo::return_is_void) {
         std::invoke(What, std::forward<Args>(args)...);
         return Value();
@@ -544,7 +511,7 @@ struct Invoke {
     if (std::is_member_function_pointer_v< decltype(What) >) {
       m_invoker = [](size_t n, Value* values) -> Value {
         UserType& u = values[0];
-        using WhatInfo = decltype(asFunctionInfo(std::declval< decltype(What) >()));
+        using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
         dbg("Type of func info is %d\n", WhatInfo::return_is_void);
         dbg("User type %s\n", resolve<UserType>()->name());
         //dbg("is member %d\n", std::is_member_function_pointer_v< decltype(What) >);
@@ -648,6 +615,9 @@ void testFuncs() {
   //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2)>::return_is_void);
   //dbg("return is void:%ld\n", FunctionInfo<decltype(fn2_void)>::return_is_void);
   */
+
+  House h1;
+  Ref(&h1).invoke("Render");
 
   Invoke obj_inv;
   obj_inv.set<&TheObj::sum, TheObj>();
