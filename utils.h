@@ -3,12 +3,34 @@
 #include <cstdarg>
 #include <cstdio>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 void dbg(const char* fmt, ...);
 int fatal(const char* fmt, ...);
 
+void myDbgHandler(const char* txt) {
+  printf("%s", txt);
+  #ifdef PLATFORM_WINDOWS
+  ::OutputDebugString(txt);
+  #endif
+}
+
+void myFatalHandler(const char* txt) {
+  myDbgHandler(txt);
+  #ifdef PLATFORM_WINDOWS
+  if (MessageBox(nullptr, txt, "Error", MB_RETRYCANCEL) == IDCANCEL) {
+    __debugbreak();
+  }
+  #else
+    exit(-1);
+  #endif
+}
+
 typedef void(*TSysOutputHandler)(const char* error);
-TSysOutputHandler dbg_handler;
-TSysOutputHandler fatal_handler;
+TSysOutputHandler dbg_handler = &myDbgHandler;
+TSysOutputHandler fatal_handler = &myFatalHandler;
 
 int fatal(const char* fmt, ...) {
   if (!fatal_handler)

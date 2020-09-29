@@ -7,6 +7,8 @@ PLUGIN_SOURCES?=$(wildcard *.cpp)
 OBJS_PATH=./objs
 OBJS=$(foreach f,$(PLUGIN_SOURCES),$(OBJS_PATH)/$(basename $(f)).o)
 
+DEPS=$(wildcard *.h)
+
 CFLAGS = 
 CFLAGS += -Wall -g
 CFLAGS += -I.
