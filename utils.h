@@ -2,7 +2,6 @@
 
 #include <cstdarg>
 #include <cstdio>
-#include "strs.h"
 
 void dbg(const char* fmt, ...);
 int fatal(const char* fmt, ...);
@@ -15,10 +14,10 @@ int fatal(const char* fmt, ...) {
   if (!fatal_handler)
     return 0;
 
-  TStr<4096> buf;
+  char buf[4096];
   va_list argp;
   va_start(argp, fmt);
-  buf.formatVaList(fmt, argp);
+  vsnprintf( buf, sizeof(buf), fmt, argp );
   va_end(argp);
   
   (*fatal_handler)(buf);
@@ -29,10 +28,10 @@ void dbg(const char* fmt, ...) {
   if (!dbg_handler)
     return;
 
-  TStr<4096> buf;
+  char buf[4096];
   va_list argp;
   va_start(argp, fmt);
-  buf.formatVaList(fmt, argp);
+  vsnprintf( buf, sizeof(buf), fmt, argp );
   va_end(argp);
 
   (*dbg_handler)(buf);
