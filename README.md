@@ -14,9 +14,10 @@ This is my reduced toy version from the awesome https://github.com/skypjack/meta
   - Data: Members associated to a type.
   - Ref: A pair of {Type + Address}. Address not owned by the Ref.
     You can create Ref from the address of a typed C++ object.
+	- Value: A container of any value, owning it's own memory
+	- Func: Handles to methods of classes
 - Copy values between refs
 - Base class.
-- Value as a container, not a reference
 - Can reflect methods, by converting all args and return to Values
 
 # Requirements
@@ -34,12 +35,16 @@ Check more in the sample code.
 struct House {
   int life = 1;
   float size = 2.0f;
+	void render(float scale) {
+		printf( "Hi from render(%f)\n", scale );
+	}
 };
 
 // Declare the type
-::reflect<House>("House")
+reflect<House>("House")
   .data<&House::life>("Life")
-  .data<&House::size>("Size");
+  .data<&House::size>("Size")
+  .func<&House::render>("MyRender");
 
 // Access data members using names.
 House my_house;
@@ -50,6 +55,9 @@ assert( my_house.life == 10);
 
 // Or chain them 
 r_house.get("Life").set(11);
+
+// You can also call methods
+r_house.invoke("MyRender", 3.14f);
 
 // Serialize to json
 json j;
@@ -86,7 +94,7 @@ assert( your_house.size == my_house.size );
 - [ ] Convert `const Data*` to DataPtr and `const Type*` to TypePtr o something similar
 - [ ] More examples
 - [ ] I/O ImGui
-- [ ] I/O Binary
+- [ ] I/O Binary. Not sure about the benefits
 - [ ] members using fn to get/set
 - [ ] Support for dicts
 - [ ] Release allocated memory
