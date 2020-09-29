@@ -324,12 +324,12 @@ namespace REFLECTOR_NAMESPACE {
     bool        m_registered = false;
 
     // The common signature returns a 'Value' and receives an array of 'Values'
-    Value     (*m_invoker)(size_t num_values, Value* values) = nullptr;
+    Value     (*m_invoker)(void* obj, size_t num_values, Value* values) = nullptr;
 
     template<auto What>
     struct Invokator {
       template<typename ...Args>
-      inline Value invoke(Args... args) {
+      inline Value invoke(Args&&... args) {
         // Not strictly required, but allow to differenciate between the non-void result
         // and the void result for any number of arguments...
         using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
@@ -348,24 +348,24 @@ namespace REFLECTOR_NAMESPACE {
     template<auto What, typename UserType>
     void set() {
       if (std::is_member_function_pointer_v< decltype(What) >) {
-        m_invoker = [](size_t n, Value* values) -> Value {
-          UserType& u = values[0];
+        m_invoker = [](void* obj, size_t n, Value* values) -> Value {
+          UserType& u = *reinterpret_cast<UserType*>(obj);
           using WhatInfo = decltype(details::asFunctionInfo(std::declval< decltype(What) >()));
           Invokator<What> invokator;
           if constexpr (WhatInfo::num_args == 0) {
             return invokator.invoke(u);
           }
           else if constexpr (WhatInfo::num_args == 1) {
-            return invokator.invoke(u, values[1]);
+            return invokator.invoke(u, values[0]);
           }
           else if constexpr (WhatInfo::num_args == 2) {
-            return invokator.invoke(u, values[1], values[2]);
+            return invokator.invoke(u, values[0], values[1]);
           }
           else if constexpr (WhatInfo::num_args == 3) {
-            return invokator.invoke(u, values[1], values[2], values[3]);
+            return invokator.invoke(u, values[0], values[1], values[2]);
           }
           else if constexpr (WhatInfo::num_args == 4) {
-            return invokator.invoke(u, values[1], values[2], values[3], values[4]);
+            return invokator.invoke(u, values[0], values[1], values[2], values[3]);
           }
           else
           {
@@ -490,13 +490,13 @@ namespace REFLECTOR_NAMESPACE {
     }
 
     template<typename ...Args>
-    Value invoke(const Func* f, Args... args) const {
+    Value invoke(const Func* f, Args&&... args) const {
       assert(f);
       assert(isValid());
       //assert(m_type->derivesFrom( f->parent() ) || REFLECTOR_ERROR("Function obj %s is not part of type %s\n", f->name(), type()->name()));
       // Flatten the args in an array, so we can use the common m_invoker signature
       Value vals[1 + sizeof...(Args)] = { std::forward<Args>(args)... };
-      return f->m_invoker(sizeof...(Args), vals);
+      return f->m_invoker(m_addr, sizeof...(Args), vals);
     }
 
     // -----------------------------------------

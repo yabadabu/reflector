@@ -79,6 +79,11 @@ struct House {
     size = other.size;
     dbg("House op= %p from %p..\n", this, &other);
   }
+  House split() noexcept {
+    House h = *this;
+    h.size *= 0.5f;
+    return h;
+  }
 };
 
 typedef std::vector<int> IDs;
@@ -161,6 +166,7 @@ void registerTypes() {
     .data<&House::life>("Life")
     .data<&House::size>("Size")
     .func<&House::render>("Render")
+    .func<&House::split>("Split")
     ;
 
 }
@@ -208,8 +214,11 @@ void testTypes() {
   assert(new_life == 5);
 
   // Call to method Render using a reference
-  // r_house.invoke("Render");
+  r_house.invoke("Render");
   Ref(&city).invoke("Render");
+
+  House house_split = r_house.invoke("Split");
+  assert(house_split.size * 2.0f == house.size);
 
   assert(resolve<double>());
 
