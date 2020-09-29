@@ -2,18 +2,29 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Reflection.cpp" />
-    <ClCompile Include="reflector.cpp" />
+    <ClCompile Include="reflector\reflector.cpp">
+      <Filter>reflector</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />
-    <ClInclude Include="reflector.h" />
     <ClInclude Include="utils.h" />
-    <ClInclude Include="reflector_json.h" />
+    <ClInclude Include="reflector\reflector.h">
+      <Filter>reflector</Filter>
+    </ClInclude>
+    <ClInclude Include="reflector\reflector_json.h">
+      <Filter>reflector</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="nlohmann\nlohmann_json.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="reflector">
+      <UniqueIdentifier>{a10ec157-278f-4f0f-b2bb-f0bcf81b99f2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

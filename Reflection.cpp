@@ -1,7 +1,8 @@
 // Reflection.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 // -----------------------------------------------------------------------------------
-#include "reflector.h"
+
+#include "reflector/reflector.h"
 using namespace REFLECTOR_NAMESPACE;
 
 #include "utils.h"

@@ -144,12 +144,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Reflection.cpp" />
-    <ClCompile Include="reflector.cpp" />
+    <ClCompile Include="reflector\reflector.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />
-    <ClInclude Include="reflector.h" />
-    <ClInclude Include="reflector_json.h" />
+    <ClInclude Include="reflector\reflector.h" />
+    <ClInclude Include="reflector\reflector_json.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>
