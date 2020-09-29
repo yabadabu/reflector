@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <functional>
+#include <vector>
 
 #ifndef REFLECTOR_ERROR
 #define REFLECTOR_ERROR fatal
@@ -24,7 +25,10 @@ namespace REFLECTOR_NAMESPACE {
   class Data;
   class Ref;
 
-  template< typename UserType >
+  template< typename T >
+  struct Factory;
+
+  template< typename T >
   Type* resolve();
 
   // ----------------------------------------
@@ -47,10 +51,7 @@ namespace REFLECTOR_NAMESPACE {
 
     // Iterate over all props
     template< typename Fn>
-    void props(Fn fn) const {
-      for (auto& p : m_props)
-        fn(p);
-    }
+    void props(Fn fn) const;
 
     // Get the value of a property, null if the prop does not exists
     template< typename PropType >
@@ -455,6 +456,14 @@ namespace REFLECTOR_NAMESPACE {
         return p.as<PropType>();
     }
     return nullptr;
+  }
+
+
+  // Iterate over all props
+  template< typename Fn>
+  void PropsContainer::props(Fn fn) const {
+    for (auto& p : m_props)
+      fn(p);
   }
 
 }
