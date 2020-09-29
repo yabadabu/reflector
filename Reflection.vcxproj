@@ -150,7 +150,6 @@
     <ClInclude Include="named_values.h" />
     <ClInclude Include="reflector.h" />
     <ClInclude Include="reflector_json.h" />
-    <ClInclude Include="strs.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>

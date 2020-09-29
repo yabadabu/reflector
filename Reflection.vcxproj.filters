@@ -8,7 +8,6 @@
     <ClInclude Include="named_values.h" />
     <ClInclude Include="reflector.h" />
     <ClInclude Include="utils.h" />
-    <ClInclude Include="strs.h" />
     <ClInclude Include="reflector_json.h" />
   </ItemGroup>
   <ItemGroup>
