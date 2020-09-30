@@ -1,4 +1,4 @@
-This is my reduced toy version from the awesome https://github.com/skypjack/meta
+HoThis is my reduced toy version from the awesome https://github.com/skypjack/meta
 
 # Features
 - No macros
@@ -92,10 +92,12 @@ assert( your_house.size == my_house.size );
 
 ## ToDo
 
+- [ ] I/O ImGui
 - [ ] Convert `const Data*` to DataPtr and `const Type*` to TypePtr o something similar
 - [ ] More examples
-- [ ] I/O ImGui
 - [ ] members using fn to get/set
 - [ ] Support for dicts
-- [ ] Release allocated memory. Value is not move aware
-
+- [ ] Release allocated memory. Value is not move aware, it's not calling the dtors, so
+      for PODs it's fine, but anything else it's a problem
+- [ ] Can instantiate a Value just from name? Need a template ctor
+- [ ] Make name an abstracton/class?
