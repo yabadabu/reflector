@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <functional>
 
 void dbg(const char* fmt, ...);
 
@@ -35,21 +36,22 @@ namespace Reflector {
     }
 
     void writeBytes(const void* addr, size_t nbytes) {
-      dbg("[%05ld] io.bin.write      %ld bytes\n", size(), nbytes);
+      //dbg("[%05ld] io.bin.write      %ld bytes\n", size(), nbytes);
       assert(!closed);
       insert(end(), (uint8_t*)addr, (uint8_t*)addr + nbytes);
     }
 
     template< typename T >
     void writePOD(const T& t) {
-      dbg("[%05ld] io.bin.writePOD   %s\n", size(), resolve<T>()->name());
+      //dbg("[%05ld] io.bin.writePOD   %s\n", size(), resolve<T>()->name());
+      assert(strcmp(resolve<T>()->name(), "TypeNameUnknown"));
       const void* addr = &t;
       insert(end(), (uint8_t*)addr, (uint8_t*)addr + sizeof(T));
       //writeBytes(&t, sizeof(T));
     }
 
     void writeType(const Type* t) {
-      dbg("[%05ld] io.bin.---.Type %s\n", size(), t->name());
+      //dbg("[%05ld] io.bin.---.Type %s\n", size(), t->name());
       IndexType idx = 0;
       auto it = dict.find(t);
       if (it == dict.end()) {
@@ -88,7 +90,7 @@ namespace Reflector {
     }
 
     void close() {
-      dbg("[%05ld] io.bin.Writing Header\n", size());
+      //dbg("[%05ld] io.bin.Writing Header\n", size());
       assert(!closed);
       Buffer b;
       b.writePOD(magic_header_types);
@@ -104,7 +106,7 @@ namespace Reflector {
       // Insert the header at the beginning of the buffer
       insert(begin(), b.begin(), b.end());
       closed = true;
-      dbg("[%05ld] io.bin.Closed\n", size());
+      //dbg("[%05ld] io.bin.Closed\n", size());
     }
 
   };
@@ -214,51 +216,37 @@ namespace Reflector {
     static constexpr uint32_t magic_header_types = 0x55114422;
     static constexpr uint32_t magic_struct_types = 0x55114422;
     using IndexType = uint32_t;
-
-
   };
 
-
-
-  /*
   // -----------------------------------------------------------------------------------
   template< typename Container>
-  jsonIO makeVectorIO() {
-    jsonIO j;
-    j.to_json = [](json& j, const Ref& r) {
+  binaryIO binaryVectorIO() {
+    binaryIO io;
+    io.write = [](Buffer& b, Ref r) {
       const Container& container = *r.as<Container>();
-      j = json::array();
+
+      size_t num_elems = container.size();
+      b.writePOD(num_elems);
+
       size_t idx = 0;
-      for (auto& item : container) {
-        Ref child(&container[idx]);
-        json jitem;
-        toJson(jitem, child);
-        j[idx] = std::move(jitem);
+      while (idx < container.size()) {
+        b.write(&container[idx]);
         ++idx;
       }
     };
-    j.from_json = [](const json& j, const Ref& r) {
-      Container& container = *(Container*)r.as<Container>();
+    io.read = [](BinParser& b, Ref r) {
+      Container& container = *r.as<Container>();
       container.clear();
-      container.resize(j.size());
-      for (size_t i = 0; i < j.size(); ++i) {
-        Ref child(&container[i]);
-        fromJson(j[i], child);
-      }
+
+      size_t num_elems = 0;
+      b.readPOD(num_elems);
+
+      container.resize(num_elems);
+      for (size_t i = 0; i < num_elems; ++i)
+        b.read(&container[i]);
     };
-    return j;
+    return io;
   }
-
-  // -------------------- Helper to declare std::vector<Item> with the json serialzier
-  // Example: reflectVector<int>("int");
-  template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
-  Factory<UserType>& reflectVector(const char* name, Property &&... property) {
-    static std::string vname = "std::vector<" + std::string(name) + ">";
-    return reflect<UserType>(vname.c_str(), makeVectorIO<UserType>(), std::forward<Property>(property)...);
-  }
-
-  void registerCommonTypes();
-  */
 
   void registerBinaryIOCommonTypes();
 

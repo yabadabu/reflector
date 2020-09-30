@@ -75,6 +75,9 @@ struct House {
   ~House() {
     dbg("House destroyed %p..\n", this);
   }
+  House(int new_life, float new_size) : life(new_life), size(new_size) {
+    dbg("House custom constructed %p..\n", this);
+  }
   House() {
     dbg("House ctor-constructed %p..\n", this);
   }
@@ -149,12 +152,13 @@ void registerTypes() {
   dbg("Sizeof(Func) = %ld\n", sizeof(Func));
   dbg("Sizeof(PropsContainer) = %ld\n", sizeof(PropsContainer));
 
-  registerCommonTypes();
-  reflectVector<House>("House");
-  reflectVector<int>("int");
-  registerBinaryIOCommonTypes();
+#define enumIOs(lut)  jsonEnumIO(lut),                binaryEnumIO(lut)
+#define vectorIOs(T)  jsonVectorIO<std::vector<T>>(), binaryVectorIO<std::vector<T>>()
 
-#define enumIOs(lut)  jsonEnumIO(lut), binaryEnumIO(lut)
+  registerCommonTypes();
+  reflectVector<House>("House", vectorIOs(House));
+  reflectVector<int>("int", vectorIOs(int));
+  registerBinaryIOCommonTypes();
 
   {
     static NamedValues<City::eSize> values = {
@@ -691,10 +695,20 @@ void testBinary() {
   city.name = "Barcelona";
   city.council = house;
   city.size = City::eSize::Small;
+  House h1(110, 111.f);
+  city.houses.push_back(h1);
+  House h2(220, 222.f);
+  city.houses.push_back(h2);
+  city.ids.push_back(98);
+  city.ids.push_back(99);
+  city.ids.push_back(97);
   buf.rewind();
   buf.write(&city);
   buf.close();
-  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(City));
+  
+  json j;
+  toJson(j, &city);
+  dbg("Binary buffer %ld bytes vs %d (Json:%d)\n", buf.size(), sizeof(City), j.dump().length() );
 
   City city3;
   BinParser reader3(buf);
@@ -702,6 +716,10 @@ void testBinary() {
   assert(city.name == city3.name);
   assert(city.council == city3.council);
   assert(city.size == city3.size);
+  assert(city.houses.size() == city3.houses.size());
+  assert(city.houses == city3.houses);
+  assert(city.ids.size() == city3.ids.size());
+  assert(city.ids == city3.ids);
 
 }
 
@@ -709,11 +727,11 @@ void testBinary() {
 int main()
 {
   registerTypes();
-  //dumpTypes();
-  //testTypes();
-  //testBase();
-  //dumpTypes();
-  //testValue();
-  //testFuncs();
+  dumpTypes();
+  testTypes();
+  testBase();
+  dumpTypes();
+  testValue();
+  testFuncs();
   testBinary();
 }

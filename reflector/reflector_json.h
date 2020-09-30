@@ -35,7 +35,7 @@ namespace REFLECTOR_NAMESPACE {
 
   // -----------------------------------------------------------------------------------
   template< typename Container>
-  jsonIO makeVectorIO() {
+  jsonIO jsonVectorIO() {
     jsonIO j;
     j.to_json = [](json& j, Ref r) {
       const Container& container = *r.as<Container>();
@@ -63,7 +63,7 @@ namespace REFLECTOR_NAMESPACE {
   template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
   Factory<UserType>& reflectVector(const char* name, Property &&... property) {
     static std::string vname = "std::vector<" + std::string(name) + ">";
-    return reflect<UserType>(vname.c_str(), makeVectorIO<UserType>(), std::forward<Property>(property)...);
+    return reflect<UserType>(vname.c_str(), std::forward<Property>(property)...);
   }
 
   REFLECTOR_API void registerCommonTypes();
