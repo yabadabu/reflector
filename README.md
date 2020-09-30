@@ -89,6 +89,7 @@ assert( your_house.size == my_house.size );
 - [x] Can call methods given a Ref()
 - [x] Confirm compiles without errors in OSX
 - [x] I/O Binary. Not sure about the benefits. Sizes are not specially small compared to json
+- [x] Reduced compressed size after using Varint encoding for integers (from 276 to 173 bytes)
 
 ## ToDo
 

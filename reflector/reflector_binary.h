@@ -20,13 +20,12 @@ namespace Reflector {
     std::function<void(BinDecoder& b, Ref r)> read;
   };
 
-  static constexpr uint32_t magic_header_types = 0x55114422;
-  using IndexType = uint32_t;
+  static constexpr uint32_t magic_binary_header_types = 0x55114422;
 
   // -----------------------------------------------------------------------------------
   class BinEncoder {
 
-    std::unordered_map< const Type*, IndexType > dict;
+    std::unordered_map< const Type*, size_t > dict;
     bool closed = false;
 
     Buffer& store;
@@ -40,6 +39,14 @@ namespace Reflector {
     void rewind() {
       store.clear();
       closed = false;
+    }
+
+    void writeVarint(size_t value) {
+      while (value > 0x7F) {
+        store.push_back( ((uint8_t)(value & 0x7F)) | 0x80);
+        value >>= 7;
+      }
+      store.push_back(((uint8_t)value) & 0x7F);
     }
 
     void writeBytes(const void* addr, size_t nbytes) {
@@ -59,20 +66,20 @@ namespace Reflector {
 
     void writeType(const Type* t) {
       //dbg("[%05ld] io.bin.---.Type %s\n", size(), t->name());
-      IndexType idx = 0;
+      size_t idx = 0;
       auto it = dict.find(t);
       if (it == dict.end()) {
-        idx = (IndexType)dict.size();
-        dict[t] = (uint32_t)dict.size();
+        idx = dict.size();
+        dict[t] = idx;
       }
       else
         idx = it->second;
-      writePOD(idx);
+      writeVarint(idx);
     }
 
     void writeString(const char* txt) {
-      uint32_t len = (uint32_t)strlen(txt) + 1;
-      writePOD(len);
+      size_t len = strlen(txt) + 1;
+      writeVarint(len);
       writeBytes(txt, len);
     }
 
@@ -83,16 +90,17 @@ namespace Reflector {
       if (binary_io)
         binary_io->write(*this, r);
 
-      // Data members
+      // Data members. We have a hardcode limit of 255 as we are using an uint8_t
       size_t s = store.size();
       uint8_t n = 0;
       writePOD(n);
       r.type()->data([&](const Data* d) {
+        assert( n < 255 || REFLECTOR_ERROR("Too many data members serialized in type %s\n", r.type()->name()));
         write(r.get(d));
         ++n;
         });
 
-      // Update n members
+      // Update number of members
       *(store.begin() + s) = n;
     }
 
@@ -101,8 +109,8 @@ namespace Reflector {
       assert(!closed);
       Buffer header_buf;
       BinEncoder b(header_buf);
-      b.writePOD(magic_header_types);
-      b.writePOD((uint32_t)dict.size());
+      b.writePOD(magic_binary_header_types);
+      b.writeVarint(dict.size());
 
       std::vector< const Type* > types_to_save;
       types_to_save.resize(dict.size());
@@ -134,7 +142,7 @@ namespace Reflector {
     bool           is_valid = false;
 
     size_t readOffset() const { return top - base; }
-
+    
   public:
 
     BinDecoder(const Buffer& buf) {
@@ -152,7 +160,18 @@ namespace Reflector {
       assert(top <= end);
       return curr;
     }
-
+    
+    size_t readVarint() {
+      size_t val = 0;
+      for (size_t i = 0; i < 16; i++) {
+        uint8_t b = *(uint8_t*)consume(1);
+        val |= ((size_t)(b & 0x7f)) << (7ull * i);
+        if(!(b & 0x80))
+          break;
+      }
+      return val;
+    }
+    
     void readBytes(void* addr, size_t nbytes) {
       memcpy(addr, consume(nbytes), nbytes);
     }
@@ -163,20 +182,18 @@ namespace Reflector {
     }
 
     const char* readString() {
-      uint32_t len = 0;
-      readPOD(len);
+      size_t len = readVarint();
       const char* txt = (const char*)consume(len);
       return txt;
     }
 
     bool parseHeader() {
       uint32_t magic_header_types_read = 0;
-      uint32_t num_types = 0;
       readPOD(magic_header_types_read);
-      readPOD(num_types);
-      assert(magic_header_types == magic_header_types_read);
+      size_t num_types = readVarint();
+      assert(magic_binary_header_types == magic_header_types_read);
       types.reserve(num_types);
-      for( uint32_t i=0; i<num_types; ++i ) {
+      for( size_t i=0; i<num_types; ++i ) {
         const char* name = readString();
         SavedType s;
         s.name = name;
@@ -194,8 +211,7 @@ namespace Reflector {
     void read(Ref r) {
 
       // Read type
-      IndexType type_idx = 0;
-      readPOD(type_idx);
+      size_t type_idx = readVarint();
       assert(type_idx < types.size());
       const Type* t = types[type_idx].type;
       //dbg("[%5d] Read type %s\n", readOffset() - sizeof(IndexType), t->name());
@@ -208,7 +224,7 @@ namespace Reflector {
       if (binary_io)
         binary_io->read(*this, r);
 
-      // Data members
+      // Data members. The number of data members is currently stored in a single byte
       uint8_t n = 0;
       readPOD(n);
       r.type()->data([&](const Data* d) {
@@ -227,8 +243,7 @@ namespace Reflector {
     io.write = [](BinEncoder& b, Ref r) {
       const Container& container = *r.as<Container>();
 
-      size_t num_elems = container.size();
-      b.writePOD(num_elems);
+      b.writeVarint( container.size() );
 
       size_t idx = 0;
       while (idx < container.size()) {
@@ -240,8 +255,7 @@ namespace Reflector {
       Container& container = *r.as<Container>();
       container.clear();
 
-      size_t num_elems = 0;
-      b.readPOD(num_elems);
+      size_t num_elems = b.readVarint();
 
       container.resize(num_elems);
       for (size_t i = 0; i < num_elems; ++i)
