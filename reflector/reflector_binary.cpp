@@ -2,24 +2,35 @@
 
 namespace Reflector {
 
+  void toBinary(Buffer& buf, Ref r) {
+    BinEncoder b(buf);
+    b.write(r);
+    b.close();
+  }
+
+  void fromBinary(const Buffer& buf, Ref r) {
+    BinDecoder b(buf);
+    b.read(r);
+  }
+
   template< typename T>
-  static void basic_to_binary(Buffer& b, Ref r) {
+  static void basic_to_binary(BinEncoder& b, Ref r) {
     T* v = r.as<T>();
     b.writePOD(*v);
   }
 
   template< typename T>
-  static void binary_to_basic(BinParser& b, Ref r) {
+  static void binary_to_basic(BinDecoder& b, Ref r) {
     b.readBytes((void*)r.rawAddr(), sizeof(T));
   }
 
-  static void string_to_binary(Buffer& b, Ref r) {
+  static void string_to_binary(BinEncoder& b, Ref r) {
     std::string* v = r.as<std::string>();
     b.writePOD(v->size());
     b.writeBytes(v->data(), v->size());
   }
 
-  static void binary_to_string(BinParser& b, Ref r) {
+  static void binary_to_string(BinDecoder& b, Ref r) {
     std::string* v = r.as<std::string>();
     std::string::size_type sz;
     b.readPOD(sz);

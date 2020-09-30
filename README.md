@@ -88,14 +88,14 @@ assert( your_house.size == my_house.size );
 - [x] Allow customization to export to dll's, namespace and error msgs
 - [x] Can call methods given a Ref()
 - [x] Confirm compiles without errors in OSX
+- [x] I/O Binary. Not sure about the benefits. Sizes are not specially small compared to json
 
 ## ToDo
 
 - [ ] Convert `const Data*` to DataPtr and `const Type*` to TypePtr o something similar
 - [ ] More examples
 - [ ] I/O ImGui
-- [ ] I/O Binary. Not sure about the benefits
 - [ ] members using fn to get/set
 - [ ] Support for dicts
-- [ ] Release allocated memory
+- [ ] Release allocated memory. Value is not move aware
 

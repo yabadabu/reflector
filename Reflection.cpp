@@ -51,11 +51,11 @@ jsonIO jsonEnumIO(const INamedValues* named_values) {
 
 binaryIO binaryEnumIO(const INamedValues* named_values) {
   binaryIO io;
-  io.write = [named_values](Buffer& b, Ref r) {
+  io.write = [named_values](BinEncoder& b, Ref r) {
     const int* iaddr = (const int*)r.rawAddr();
     b.writePOD(*iaddr);
   };
-  io.read = [named_values](BinParser& b, Ref r) {
+  io.read = [named_values](BinDecoder& b, Ref r) {
     int* iaddr = (int*)r.rawAddr();
     b.readPOD(*iaddr);
   };
@@ -669,28 +669,44 @@ void testBinary() {
   house.life = 1800;
   house.size = 3.14f;
 
-  //float f = 3.0f;
-  //buf.rewind();
-  //buf.write(&f);
-  //buf.close();
-  //dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(float));
-  //float f2;
-  //BinParser reader(buf);
-  //reader.read(&f2);
+  // simple
+  float f = 3.0f;
+  toBinary(buf, &f);
+  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(float));
+  float f2;
+  BinDecoder reader(buf);
+  reader.read(&f2);
 
-  //buf.rewind();
-  //buf.write(&house);
-  //house.life = 1801;
-  //house.size = 3.15f;
-  //buf.write(&house);
-  //buf.close();
-  //dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(House));
+  // struct
+  toBinary(buf, &house);
+  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(House));
 
-  //House h2;
-  //BinParser reader2(buf);
-  //reader2.read(&h2);
-  //reader2.read(&h2);
+  House rh;
+  fromBinary(buf, &rh);
+  assert(rh == house);
 
+  // 
+  f2 = -1.0f;
+  f = 3.1415f;
+  House wh2(1801, 3.15f);
+
+  // Multiple objets
+  BinEncoder enc(buf);
+  enc.write(&house);
+  enc.write(&f);
+  enc.write(&wh2);
+  enc.close();
+
+  // Decode the multiple objects
+  BinDecoder dec(buf);
+  dec.read(&rh);
+  assert(rh == house);
+  dec.read(&f2);
+  assert(f == f2);
+  dec.read(&rh);
+  assert(rh == wh2);
+
+  // complex struct
   City city;
   city.name = "Barcelona";
   city.council = house;
@@ -702,17 +718,14 @@ void testBinary() {
   city.ids.push_back(98);
   city.ids.push_back(99);
   city.ids.push_back(97);
-  buf.rewind();
-  buf.write(&city);
-  buf.close();
-  
   json j;
   toJson(j, &city);
+
+  toBinary(buf, &city);
   dbg("Binary buffer %ld bytes vs %d (Json:%d)\n", buf.size(), sizeof(City), j.dump().length() );
 
   City city3;
-  BinParser reader3(buf);
-  reader3.read(&city3);
+  fromBinary(buf, &city3);
   assert(city.name == city3.name);
   assert(city.council == city3.council);
   assert(city.size == city3.size);

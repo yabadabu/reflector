@@ -8,14 +8,15 @@ void dbg(const char* fmt, ...);
 namespace Reflector {
 
   class Type;
-  class Buffer;
-  class BinParser;
+  class BinEncoder;
+  class BinDecoder;
+  using Buffer = std::vector< uint8_t >;
 
   // -----------------------------------------------------------------------------------
   // Binary IO
   struct binaryIO {
-    std::function<void(Buffer& b, Ref r)>       write;
-    std::function<void(BinParser& b, Ref r)> read;
+    std::function<void(BinEncoder& b, Ref r)>       write;
+    std::function<void(BinDecoder& b, Ref r)> read;
   };
 
   static constexpr uint32_t magic_header_types = 0x55114422;
@@ -23,22 +24,28 @@ namespace Reflector {
   using IndexType = uint32_t;
 
   // -----------------------------------------------------------------------------------
-  class Buffer : public std::vector< uint8_t > {
+  class BinEncoder {
 
     std::unordered_map< const Type*, IndexType > dict;
     bool closed = false;
 
+    Buffer& store;
+
   public:
+    
+    BinEncoder(Buffer& buf) : store(buf) { 
+      rewind();
+    }
 
     void rewind() {
-      clear();
+      store.clear();
       closed = false;
     }
 
     void writeBytes(const void* addr, size_t nbytes) {
       //dbg("[%05ld] io.bin.write      %ld bytes\n", size(), nbytes);
       assert(!closed);
-      insert(end(), (uint8_t*)addr, (uint8_t*)addr + nbytes);
+      store.insert(store.end(), (uint8_t*)addr, (uint8_t*)addr + nbytes);
     }
 
     template< typename T >
@@ -46,7 +53,7 @@ namespace Reflector {
       //dbg("[%05ld] io.bin.writePOD   %s\n", size(), resolve<T>()->name());
       assert(strcmp(resolve<T>()->name(), "TypeNameUnknown"));
       const void* addr = &t;
-      insert(end(), (uint8_t*)addr, (uint8_t*)addr + sizeof(T));
+      store.insert(store.end(), (uint8_t*)addr, (uint8_t*)addr + sizeof(T));
       //writeBytes(&t, sizeof(T));
     }
 
@@ -77,7 +84,7 @@ namespace Reflector {
         binary_io->write(*this, r);
 
       // Data members
-      size_t s = size();
+      size_t s = store.size();
       uint8_t n = 0;
       writePOD(n);
       r.type()->data([&](const Data* d) {
@@ -86,13 +93,14 @@ namespace Reflector {
         });
 
       // Update n members
-      *(begin() + s) = n;
+      *(store.begin() + s) = n;
     }
 
     void close() {
       //dbg("[%05ld] io.bin.Writing Header\n", size());
       assert(!closed);
-      Buffer b;
+      Buffer header_buf;
+      BinEncoder b(header_buf);
       b.writePOD(magic_header_types);
       b.writePOD((uint32_t)dict.size());
 
@@ -104,14 +112,14 @@ namespace Reflector {
         b.writeString(it->name());
 
       // Insert the header at the beginning of the buffer
-      insert(begin(), b.begin(), b.end());
+      store.insert(store.begin(), header_buf.begin(), header_buf.end());
       closed = true;
       //dbg("[%05ld] io.bin.Closed\n", size());
     }
 
   };
 
-  class BinParser {
+  class BinDecoder {
 
     using IndexType = uint32_t;
     bool  header_parsed = false;
@@ -132,7 +140,7 @@ namespace Reflector {
 
   public:
 
-    BinParser(const Buffer& buf) {
+    BinDecoder(const Buffer& buf) {
       assert(buf.data() && buf.size());
       base = top = buf.data();
       end = top + buf.size();
@@ -222,7 +230,7 @@ namespace Reflector {
   template< typename Container>
   binaryIO binaryVectorIO() {
     binaryIO io;
-    io.write = [](Buffer& b, Ref r) {
+    io.write = [](BinEncoder& b, Ref r) {
       const Container& container = *r.as<Container>();
 
       size_t num_elems = container.size();
@@ -234,7 +242,7 @@ namespace Reflector {
         ++idx;
       }
     };
-    io.read = [](BinParser& b, Ref r) {
+    io.read = [](BinDecoder& b, Ref r) {
       Container& container = *r.as<Container>();
       container.clear();
 
@@ -248,6 +256,8 @@ namespace Reflector {
     return io;
   }
 
+  void toBinary(Buffer& buf, Ref r);
+  void fromBinary(const Buffer& buf, Ref r);
   void registerBinaryIOCommonTypes();
 
 }
