@@ -245,7 +245,7 @@ namespace REFLECTOR_NAMESPACE {
       Register::addType(user_type);
     }
     else {
-      assert(strcmp(user_type->m_name, name) == 0);
+      assert(strcmp(user_type->m_name, name) == 0 || REFLECTOR_ERROR("The type %s has already registered with a different name %s. A copy/paste problem?\n", user_type->m_name, name));
     }
     user_type->initProp(std::forward<Property>(property)...);
 

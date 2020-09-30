@@ -137,6 +137,7 @@ namespace REFLECTOR_NAMESPACE {
     reflect<int>("int", jsonIO{ &basic_to_json<int>, &basic_from_json<int> });
     reflect<bool>("bool", jsonIO{ &basic_to_json<bool>, &basic_from_json<bool> });
     reflect<uint32_t>("uint", jsonIO{ &basic_to_json<uint32_t>, &basic_from_json<uint32_t> });
+    reflect<uint8_t>("u8", jsonIO{ &basic_to_json<uint8_t>, &basic_from_json<uint8_t> });
     reflect<std::string>("std::string", jsonIO{ &basic_to_json<std::string>, &basic_from_json<std::string> });
   }
 

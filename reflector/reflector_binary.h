@@ -2,6 +2,8 @@
 
 #include <vector>
 
+void dbg(const char* fmt, ...);
+
 namespace Reflector {
 
   class Type;
@@ -33,16 +35,21 @@ namespace Reflector {
     }
 
     void writeBytes(const void* addr, size_t nbytes) {
+      dbg("[%05ld] io.bin.write      %ld bytes\n", size(), nbytes);
       assert(!closed);
       insert(end(), (uint8_t*)addr, (uint8_t*)addr + nbytes);
     }
 
     template< typename T >
     void writePOD(const T& t) {
-      writeBytes(&t, sizeof(T));
+      dbg("[%05ld] io.bin.writePOD   %s\n", size(), resolve<T>()->name());
+      const void* addr = &t;
+      insert(end(), (uint8_t*)addr, (uint8_t*)addr + sizeof(T));
+      //writeBytes(&t, sizeof(T));
     }
 
     void writeType(const Type* t) {
+      dbg("[%05ld] io.bin.---.Type %s\n", size(), t->name());
       IndexType idx = 0;
       auto it = dict.find(t);
       if (it == dict.end()) {
@@ -81,16 +88,23 @@ namespace Reflector {
     }
 
     void close() {
+      dbg("[%05ld] io.bin.Writing Header\n", size());
       assert(!closed);
       Buffer b;
       b.writePOD(magic_header_types);
       b.writePOD((uint32_t)dict.size());
-      for (auto it : dict) {
-        b.writeString(it.first->name());
-      }
+
+      std::vector< const Type* > types_to_save;
+      types_to_save.resize(dict.size());
+      for (auto it : dict) 
+        types_to_save[it.second] = it.first;
+      for (auto it : types_to_save)
+        b.writeString(it->name());
+
       // Insert the header at the beginning of the buffer
       insert(begin(), b.begin(), b.end());
       closed = true;
+      dbg("[%05ld] io.bin.Closed\n", size());
     }
 
   };
@@ -99,6 +113,7 @@ namespace Reflector {
 
     using IndexType = uint32_t;
     bool  header_parsed = false;
+    bool  is_valid = false;
     
     uint32_t ntypes = 0;
     struct   SavedType {
@@ -107,20 +122,25 @@ namespace Reflector {
     };
 
     std::vector<SavedType> types;
+    const uint8_t* base = nullptr;
     const uint8_t* top = nullptr;
     const uint8_t* end = nullptr;
+
+    size_t readOffset() const { return top - base; }
 
   public:
 
     BinParser(const Buffer& buf) {
       assert(buf.data() && buf.size());
-      top = buf.data();
+      base = top = buf.data();
       end = top + buf.size();
-      parseHeader();
+      is_valid = parseHeader();
     }
 
-    const uint8_t* consume(size_t nbytes) {
-      const uint8_t* curr = top;
+    bool isValid() const { return is_valid; }
+
+    const void* consume(size_t nbytes) {
+      const void* curr = top;
       top += nbytes;
       assert(top <= end);
       return curr;
@@ -142,7 +162,7 @@ namespace Reflector {
       return txt;
     }
 
-    uint32_t parseHeader() {
+    bool parseHeader() {
       uint32_t magic_header_types_read = 0;
       uint32_t num_types = 0;
       readPOD(magic_header_types_read);
@@ -154,9 +174,13 @@ namespace Reflector {
         SavedType s;
         s.name = name;
         s.type = Register::findType(name);
-        assert(s.type || fatal("Can't find type named %s\n", name));
+        assert(s.type || REFLECTOR_ERROR("Can't identify type named %s\n", name));
+        if (!s.type)
+          return false;
         types.push_back(s);
       }
+      // offset will return from the data sector
+      base = top;
       return true;
     }
 
@@ -167,7 +191,10 @@ namespace Reflector {
       readPOD(type_idx);
       assert(type_idx < types.size());
       const Type* t = types[type_idx].type;
-      assert(r.type() == t);
+      dbg("[%5d] Read type %s\n", readOffset() - sizeof(IndexType), t->name());
+      assert(t);
+      assert(r.type());
+      assert(r.type() == t || REFLECTOR_ERROR("Expected reading Ref %s but found type %s at offset %ld\n", r.type()->name(), t->name(), readOffset() ));
 
       // Read the obj
       auto binary_io = t->propByType<binaryIO>();

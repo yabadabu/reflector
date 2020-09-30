@@ -33,7 +33,7 @@ void dumpTypes() {
 
 // -----------------------------------------------------------------------------------
 #include "named_values.h"
-jsonIO makeEnumIO(const INamedValues* named_values) {
+jsonIO jsonEnumIO(const INamedValues* named_values) {
   jsonIO j;
   j.to_json = [named_values](json& j, Ref r) {
     const int* iaddr = (const int*)r.rawAddr();
@@ -47,6 +47,19 @@ jsonIO makeEnumIO(const INamedValues* named_values) {
     *iaddr = ival;
   };
   return j;
+}
+
+binaryIO binaryEnumIO(const INamedValues* named_values) {
+  binaryIO io;
+  io.write = [named_values](Buffer& b, Ref r) {
+    const int* iaddr = (const int*)r.rawAddr();
+    b.writePOD(*iaddr);
+  };
+  io.read = [named_values](BinParser& b, Ref r) {
+    int* iaddr = (int*)r.rawAddr();
+    b.readPOD(*iaddr);
+  };
+  return io;
 }
 
 // -----------------------------------------------------------------------------------
@@ -141,13 +154,15 @@ void registerTypes() {
   reflectVector<int>("int");
   registerBinaryIOCommonTypes();
 
+#define enumIOs(lut)  jsonEnumIO(lut), binaryEnumIO(lut)
+
   {
     static NamedValues<City::eSize> values = {
      { City::eSize::Big, "Big" },
      { City::eSize::Medium, "Medium" },
      { City::eSize::Small, "Small" },
     };
-    reflect<City::eSize>("City.eSize", makeEnumIO(&values));
+    reflect<City::eSize>("City.eSize", enumIOs(&values));
   }
 
   reflect<IntRange>("IntRange")
@@ -645,31 +660,48 @@ void testFuncs() {
 
 void testBinary() {
   Buffer buf;
-  
-  float f = 3.0f;
-  buf.rewind();
-  buf.write(&f);
-  buf.close();
-  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(float));
-  float f2;
-  BinParser reader(buf);
-  reader.read(&f2);
 
   House house;
   house.life = 1800;
   house.size = 3.14f;
+
+  //float f = 3.0f;
+  //buf.rewind();
+  //buf.write(&f);
+  //buf.close();
+  //dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(float));
+  //float f2;
+  //BinParser reader(buf);
+  //reader.read(&f2);
+
+  //buf.rewind();
+  //buf.write(&house);
+  //house.life = 1801;
+  //house.size = 3.15f;
+  //buf.write(&house);
+  //buf.close();
+  //dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(House));
+
+  //House h2;
+  //BinParser reader2(buf);
+  //reader2.read(&h2);
+  //reader2.read(&h2);
+
+  City city;
+  city.name = "Barcelona";
+  city.council = house;
+  city.size = City::eSize::Small;
   buf.rewind();
-  buf.write(&house);
-  house.life = 1801;
-  house.size = 3.15f;
-  buf.write(&house);
+  buf.write(&city);
   buf.close();
-  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(House));
-  
-  House h2;
-  BinParser reader2(buf);
-  reader2.read(&h2);
-  reader2.read(&h2);
+  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(City));
+
+  City city3;
+  BinParser reader3(buf);
+  reader3.read(&city3);
+  assert(city.name == city3.name);
+  assert(city.council == city3.council);
+  assert(city.size == city3.size);
 
 }
 
