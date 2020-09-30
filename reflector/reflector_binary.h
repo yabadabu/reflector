@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
+#include "reflector/reflector.h"
 #include <functional>
 
-void dbg(const char* fmt, ...);
+//void dbg(const char* fmt, ...);
 
 namespace Reflector {
 
@@ -15,7 +15,7 @@ namespace Reflector {
   // -----------------------------------------------------------------------------------
   // Binary IO
   struct binaryIO {
-    std::function<void(BinEncoder& b, Ref r)>       write;
+    std::function<void(BinEncoder& b, Ref r)> write;
     std::function<void(BinDecoder& b, Ref r)> read;
   };
 
@@ -201,7 +201,7 @@ namespace Reflector {
       readPOD(type_idx);
       assert(type_idx < types.size());
       const Type* t = types[type_idx].type;
-      dbg("[%5d] Read type %s\n", readOffset() - sizeof(IndexType), t->name());
+      //dbg("[%5d] Read type %s\n", readOffset() - sizeof(IndexType), t->name());
       assert(t);
       assert(r.type());
       assert(r.type() == t || REFLECTOR_ERROR("Expected reading Ref %s but found type %s at offset %ld\n", r.type()->name(), t->name(), readOffset() ));

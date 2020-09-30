@@ -3,8 +3,10 @@
 // -----------------------------------------------------------------------------------
 
 #include "reflector/reflector.h"
-using namespace REFLECTOR_NAMESPACE;
+#include "reflector/reflector_json.h"
+#include "reflector/reflector_binary.h"
 
+using namespace REFLECTOR_NAMESPACE;
 #include "utils.h"
 
 void dumpProps(const PropsContainer& props_container) {
@@ -155,10 +157,10 @@ void registerTypes() {
 #define enumIOs(lut)  jsonEnumIO(lut),                binaryEnumIO(lut)
 #define vectorIOs(T)  jsonVectorIO<std::vector<T>>(), binaryVectorIO<std::vector<T>>()
 
-  registerCommonTypes();
+  registerJsonIOCommonTypes();
+  registerBinaryIOCommonTypes();
   reflectVector<House>("House", vectorIOs(House));
   reflectVector<int>("int", vectorIOs(int));
-  registerBinaryIOCommonTypes();
 
   {
     static NamedValues<City::eSize> values = {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "reflector/reflector.h"
 #include "nlohmann/json.hpp"
 using nlohmann::json;
 
@@ -66,6 +67,6 @@ namespace REFLECTOR_NAMESPACE {
     return reflect<UserType>(vname.c_str(), std::forward<Property>(property)...);
   }
 
-  REFLECTOR_API void registerCommonTypes();
+  REFLECTOR_API void registerJsonIOCommonTypes();
 
 }

@@ -146,6 +146,7 @@
     <ClCompile Include="Reflection.cpp" />
     <ClCompile Include="reflector\reflector.cpp" />
     <ClCompile Include="reflector\reflector_binary.cpp" />
+    <ClCompile Include="reflector\rellector_json.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />

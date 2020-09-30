@@ -8,6 +8,9 @@
     <ClCompile Include="reflector\reflector_binary.cpp">
       <Filter>reflector</Filter>
     </ClCompile>
+    <ClCompile Include="reflector\rellector_json.cpp">
+      <Filter>reflector</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />

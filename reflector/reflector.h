@@ -3,7 +3,6 @@
 #include <cassert>
 #include <vector>
 #include <new>
-#include <vector>
 
 #ifndef REFLECTOR_ERROR
 #define REFLECTOR_ERROR fatal
@@ -607,6 +606,3 @@ namespace REFLECTOR_NAMESPACE {
   };
 
 }
-
-#include "reflector_binary.h"
-#include "reflector_json.h"
