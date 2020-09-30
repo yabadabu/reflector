@@ -1,4 +1,5 @@
 #include "reflector/reflector_binary.h"
+#include <string>
 
 namespace Reflector {
 

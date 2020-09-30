@@ -2,6 +2,7 @@
 
 #include "reflector/reflector.h"
 #include <functional>
+#include <unordered_map>
 
 //void dbg(const char* fmt, ...);
 
@@ -121,11 +122,8 @@ namespace Reflector {
 
   class BinDecoder {
 
-    using IndexType = uint32_t;
-    bool  header_parsed = false;
-    bool  is_valid = false;
+    bool    is_valid = false;
     
-    uint32_t ntypes = 0;
     struct   SavedType {
       const char* name = nullptr;
       const Type* type = nullptr;

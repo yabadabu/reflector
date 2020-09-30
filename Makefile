@@ -3,11 +3,13 @@ OUT_PATH=./
 PLUGIN=$(OUT_PATH)$(PLUGIN_NAME).a
 
 PLUGIN_SOURCES?=$(wildcard *.cpp)
+PLUGIN_SOURCES+=$(wildcard reflector/*.cpp)
 
 OBJS_PATH=./objs
 OBJS=$(foreach f,$(PLUGIN_SOURCES),$(OBJS_PATH)/$(basename $(f)).o)
 
 DEPS=$(wildcard *.h)
+DEPS+=$(wildcard reflector/*.h)
 
 CFLAGS = 
 CFLAGS += -Wall -g
@@ -31,6 +33,7 @@ clean :
 $(OBJS_PATH) :
 	@echo Creating folders
 	@mkdir -p $(OBJS_PATH) 
+	@mkdir -p $(OBJS_PATH)/reflector
 	@mkdir -p $(OUT_PATH)
 
 $(OBJS_PATH)/%.o : %.cpp $(DEPS)

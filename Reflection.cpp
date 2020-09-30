@@ -52,12 +52,13 @@ jsonIO jsonEnumIO(const INamedValues* named_values) {
 }
 
 binaryIO binaryEnumIO(const INamedValues* named_values) {
+	(void)(named_values);
   binaryIO io;
-  io.write = [named_values](BinEncoder& b, Ref r) {
+  io.write = [](BinEncoder& b, Ref r) {
     const int* iaddr = (const int*)r.rawAddr();
     b.writePOD(*iaddr);
   };
-  io.read = [named_values](BinDecoder& b, Ref r) {
+  io.read = [](BinDecoder& b, Ref r) {
     int* iaddr = (int*)r.rawAddr();
     b.readPOD(*iaddr);
   };
