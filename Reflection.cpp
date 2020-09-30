@@ -6,8 +6,23 @@
 #include "reflector/reflector_json.h"
 #include "reflector/reflector_binary.h"
 
+// Because I want to use json & binary
+#define enumIOs(lut)  jsonEnumIO(lut),                binaryEnumIO(lut)
+#define vectorIOs(T)  jsonVectorIO<std::vector<T>>(), binaryVectorIO<std::vector<T>>()
+
 using namespace REFLECTOR_NAMESPACE;
 #include "utils.h"
+
+#include "reflector_enums.h"
+
+// -------------------- Helper to declare std::vector<Item> and adds the ios and assigns the name automatically
+// Example: reflectVector<int>();
+template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
+Factory<UserType>& reflectVector(Property &&... property) {
+  static std::string vname = "std::vector<" + std::string(resolve<ItemType>()->name()) + ">";
+  return reflect<UserType>(vname.c_str(), vectorIOs(ItemType), std::forward<Property>(property)...);
+}
+
 
 void dumpProps(const PropsContainer& props_container) {
   props_container.props([](Ref r) {
@@ -31,38 +46,6 @@ void dumpTypes() {
   Register::types([](const Type* t) {
     dumpType(t);
     });
-}
-
-// -----------------------------------------------------------------------------------
-#include "named_values.h"
-jsonIO jsonEnumIO(const INamedValues* named_values) {
-  jsonIO j;
-  j.to_json = [named_values](json& j, Ref r) {
-    const int* iaddr = (const int*)r.rawAddr();
-    assert(iaddr);
-    j = named_values->nameOfInt(*iaddr);
-  };
-  j.from_json = [named_values](const json& j, Ref r) {
-    const std::string& txt = j.get<std::string>();
-    int ival = named_values->intValueOf(txt.c_str());
-    int* iaddr = (int*)r.rawAddr();
-    *iaddr = ival;
-  };
-  return j;
-}
-
-binaryIO binaryEnumIO(const INamedValues* named_values) {
-	(void)(named_values);
-  binaryIO io;
-  io.write = [](BinEncoder& b, Ref r) {
-    const int* iaddr = (const int*)r.rawAddr();
-    b.writePOD(*iaddr);
-  };
-  io.read = [](BinDecoder& b, Ref r) {
-    int* iaddr = (int*)r.rawAddr();
-    b.readPOD(*iaddr);
-  };
-  return io;
 }
 
 // -----------------------------------------------------------------------------------
@@ -153,15 +136,13 @@ void registerTypes() {
   dbg("Sizeof(Type) = %ld\n", sizeof(Type));
   dbg("Sizeof(Data) = %ld\n", sizeof(Data));
   dbg("Sizeof(Func) = %ld\n", sizeof(Func));
+  dbg("Sizeof(Value) = %ld\n", sizeof(Value));
   dbg("Sizeof(PropsContainer) = %ld\n", sizeof(PropsContainer));
-
-#define enumIOs(lut)  jsonEnumIO(lut),                binaryEnumIO(lut)
-#define vectorIOs(T)  jsonVectorIO<std::vector<T>>(), binaryVectorIO<std::vector<T>>()
 
   registerJsonIOCommonTypes();
   registerBinaryIOCommonTypes();
-  reflectVector<House>("House", vectorIOs(House));
-  reflectVector<int>("int", vectorIOs(int));
+  reflectVector<House>();
+  reflectVector<int>();
 
   {
     static NamedValues<City::eSize> values = {

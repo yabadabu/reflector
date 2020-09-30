@@ -153,6 +153,7 @@
     <ClInclude Include="reflector\reflector.h" />
     <ClInclude Include="reflector\reflector_binary.h" />
     <ClInclude Include="reflector\reflector_json.h" />
+    <ClInclude Include="reflector_enums.h" />
     <ClInclude Include="utils.h" />
   </ItemGroup>
   <ItemGroup>

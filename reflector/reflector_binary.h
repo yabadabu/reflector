@@ -21,7 +21,6 @@ namespace Reflector {
   };
 
   static constexpr uint32_t magic_header_types = 0x55114422;
-  static constexpr uint32_t magic_struct_types = 0x55114422;
   using IndexType = uint32_t;
 
   // -----------------------------------------------------------------------------------
@@ -120,9 +119,8 @@ namespace Reflector {
 
   };
 
+  // -----------------------------------------------------------------------------------
   class BinDecoder {
-
-    bool    is_valid = false;
     
     struct   SavedType {
       const char* name = nullptr;
@@ -133,6 +131,7 @@ namespace Reflector {
     const uint8_t* base = nullptr;
     const uint8_t* top = nullptr;
     const uint8_t* end = nullptr;
+    bool           is_valid = false;
 
     size_t readOffset() const { return top - base; }
 
@@ -219,9 +218,6 @@ namespace Reflector {
       assert(n == 0);
     }
 
-    static constexpr uint32_t magic_header_types = 0x55114422;
-    static constexpr uint32_t magic_struct_types = 0x55114422;
-    using IndexType = uint32_t;
   };
 
   // -----------------------------------------------------------------------------------
@@ -254,8 +250,8 @@ namespace Reflector {
     return io;
   }
 
-  void toBinary(Buffer& buf, Ref r);
-  void fromBinary(const Buffer& buf, Ref r);
-  void registerBinaryIOCommonTypes();
+  REFLECTOR_API void toBinary(Buffer& buf, Ref r);
+  REFLECTOR_API void fromBinary(const Buffer& buf, Ref r);
+  REFLECTOR_API void registerBinaryIOCommonTypes();
 
 }

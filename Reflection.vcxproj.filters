@@ -24,6 +24,7 @@
     <ClInclude Include="reflector\reflector_binary.h">
       <Filter>reflector</Filter>
     </ClInclude>
+    <ClInclude Include="reflector_enums.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" />

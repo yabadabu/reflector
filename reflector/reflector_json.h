@@ -59,13 +59,6 @@ namespace REFLECTOR_NAMESPACE {
     return j;
   }
 
-  // -------------------- Helper to declare std::vector<Item> with the json serialzier
-  // Example: reflectVector<int>("int");
-  template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
-  Factory<UserType>& reflectVector(const char* name, Property &&... property) {
-    static std::string vname = "std::vector<" + std::string(name) + ">";
-    return reflect<UserType>(vname.c_str(), std::forward<Property>(property)...);
-  }
 
   REFLECTOR_API void registerJsonIOCommonTypes();
 
