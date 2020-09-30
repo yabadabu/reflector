@@ -139,6 +139,7 @@ void registerTypes() {
   registerCommonTypes();
   reflectVector<House>("House");
   reflectVector<int>("int");
+  registerBinaryIOCommonTypes();
 
   {
     static NamedValues<City::eSize> values = {
@@ -642,14 +643,45 @@ void testFuncs() {
 
 }
 
+void testBinary() {
+  Buffer buf;
+  
+  float f = 3.0f;
+  buf.rewind();
+  buf.write(&f);
+  buf.close();
+  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(float));
+  float f2;
+  BinParser reader(buf);
+  reader.read(&f2);
+
+  House house;
+  house.life = 1800;
+  house.size = 3.14f;
+  buf.rewind();
+  buf.write(&house);
+  house.life = 1801;
+  house.size = 3.15f;
+  buf.write(&house);
+  buf.close();
+  dbg("Binary buffer %ld bytes vs %d\n", buf.size(), sizeof(House));
+  
+  House h2;
+  BinParser reader2(buf);
+  reader2.read(&h2);
+  reader2.read(&h2);
+
+}
+
 // -----------------------------------------------------------------
 int main()
 {
   registerTypes();
-  dumpTypes();
-  testTypes();
-  testBase();
-  dumpTypes();
-  testValue();
-  testFuncs();
+  //dumpTypes();
+  //testTypes();
+  //testBase();
+  //dumpTypes();
+  //testValue();
+  //testFuncs();
+  testBinary();
 }

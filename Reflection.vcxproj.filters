@@ -5,6 +5,9 @@
     <ClCompile Include="reflector\reflector.cpp">
       <Filter>reflector</Filter>
     </ClCompile>
+    <ClCompile Include="reflector\reflector_binary.cpp">
+      <Filter>reflector</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="named_values.h" />
@@ -13,6 +16,9 @@
       <Filter>reflector</Filter>
     </ClInclude>
     <ClInclude Include="reflector\reflector_json.h">
+      <Filter>reflector</Filter>
+    </ClInclude>
+    <ClInclude Include="reflector\reflector_binary.h">
       <Filter>reflector</Filter>
     </ClInclude>
   </ItemGroup>

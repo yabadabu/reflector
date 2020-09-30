@@ -609,3 +609,4 @@ namespace REFLECTOR_NAMESPACE {
 }
 
 #include "reflector_json.h"
+#include "reflector_binary.h"
