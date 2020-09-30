@@ -154,6 +154,7 @@ namespace REFLECTOR_NAMESPACE {
 
     REFLECTOR_API void addType(Type* new_type);
     REFLECTOR_API void delType(Type* new_type);
+    REFLECTOR_API const Type* findType(const char* name);
 
     namespace details {
       using AllTypesContainer = std::vector< Type* >;
