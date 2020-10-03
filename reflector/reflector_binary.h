@@ -6,7 +6,7 @@
 
 //void dbg(const char* fmt, ...);
 
-namespace Reflector {
+namespace REFLECTOR_NAMESPACE {
 
   class Type;
   class BinEncoder;

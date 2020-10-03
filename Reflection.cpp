@@ -19,10 +19,16 @@ using namespace REFLECTOR_NAMESPACE;
 // Example: reflectVector<int>();
 template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
 Factory<UserType>& reflectVector(Property &&... property) {
-  static std::string vname = "std::vector<" + std::string(resolve<ItemType>()->name()) + ">";
+  using ValueType = std::remove_pointer_t< typename UserType::value_type >;
+  static std::string vname;
+  if constexpr (std::is_pointer_v<ItemType>) {
+    vname = "std::vector<" + std::string(resolve<ValueType>()->name()) + "*>";
+  }
+  else {
+    vname = "std::vector<" + std::string(resolve<ValueType>()->name()) + ">";
+  }
   return reflect<UserType>(vname.c_str(), vectorIOs(ItemType), std::forward<Property>(property)...);
 }
-
 
 void dumpProps(const PropsContainer& props_container) {
   props_container.props([](Ref r) {
@@ -105,6 +111,10 @@ struct City {
   }
 };
 
+struct CityHousePtrs {
+  std::vector< House* > houses;
+};
+
 void dumpRef(Ref ref) {
   dbg("Ref has type %s\n", ref.type()->name());
   ref.type()->data([](const Data* d) {
@@ -141,8 +151,6 @@ void registerTypes() {
 
   registerJsonIOCommonTypes();
   registerBinaryIOCommonTypes();
-  reflectVector<House>();
-  reflectVector<int>();
 
   {
     static NamedValues<City::eSize> values = {
@@ -173,6 +181,13 @@ void registerTypes() {
     .func<&House::render>("Render")
     .func<&House::split>("Split")
     ;
+
+  reflect<CityHousePtrs>("CityHouse")
+    .data<&CityHousePtrs::houses>("Houses");
+
+  reflectVector<House>();
+  reflectVector<int>();
+  reflectVector<House*>();
 
 }
 
@@ -720,15 +735,32 @@ void testBinary() {
 
 }
 
+void testVectors() {
+  CityHousePtrs chp;
+  chp.houses.push_back(new House(10, 10.f));
+  chp.houses.push_back(new House(11, 11.f));
+  json j;
+  toJson(j, &chp);
+  dbg("Vector<*> is:%s\n%s\n", resolve<std::vector<House*>>()->name(), j.dump().c_str());
+  CityHousePtrs chp2;
+  fromJson(j, &chp2);
+  assert(chp.houses.size() == chp2.houses.size());
+  for (size_t i = 0; i < chp.houses.size(); ++i) {
+    assert(*chp.houses[i] == *chp2.houses[i]);
+  }
+
+}
+
 // -----------------------------------------------------------------
 int main()
 {
   registerTypes();
   dumpTypes();
-  testTypes();
-  testBase();
-  dumpTypes();
-  testValue();
-  testFuncs();
-  testBinary();
+  //testTypes();
+  //testBase();
+  //dumpTypes();
+  //testValue();
+  //testFuncs();
+  //testBinary();
+  testVectors();
 }
