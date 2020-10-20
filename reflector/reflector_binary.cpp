@@ -1,7 +1,7 @@
 #include "reflector/reflector_binary.h"
 #include <string>
 
-namespace Reflector {
+namespace REFLECTOR_NAMESPACE {
 
   void toBinary(Buffer& buf, Ref r) {
     BinEncoder b(buf);

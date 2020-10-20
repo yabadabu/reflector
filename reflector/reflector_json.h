@@ -38,13 +38,19 @@ namespace REFLECTOR_NAMESPACE {
   template< typename Container>
   jsonIO jsonVectorIO() {
     jsonIO j;
+    using ValueType = typename Container::value_type;
     j.to_json = [](json& j, Ref r) {
       const Container& container = *r.as<Container>();
       j = json::array();
       size_t idx = 0;
       while( idx < container.size() ) {
         json jitem;
-        toJson(jitem, &container[idx]);
+        if constexpr (std::is_pointer_v<ValueType>) {
+          toJson(jitem, container[idx]);
+        }
+        else {
+          toJson(jitem, &container[idx]);
+        }
         j[idx] = std::move(jitem);
         ++idx;
       }
@@ -53,8 +59,16 @@ namespace REFLECTOR_NAMESPACE {
       Container& container = *r.as<Container>();
       container.clear();
       container.resize(j.size());
-      for (size_t i = 0; i < j.size(); ++i)
-        fromJson(j[i], &container[i]);
+      for (size_t i = 0; i < j.size(); ++i) {
+        if constexpr (std::is_pointer_v<ValueType>) {
+          // Construct a new object and save the pointer
+          container[i] = new std::remove_pointer_t< ValueType >();
+          fromJson(j[i], container[i]);
+        }
+        else {
+          fromJson(j[i], &container[i]);
+        }
+      }
     };
     return j;
   }
