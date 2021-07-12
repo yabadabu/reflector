@@ -17,9 +17,9 @@ using namespace REFLECTOR_NAMESPACE;
 
 // -------------------- Helper to declare std::vector<Item> and adds the ios and assigns the name automatically
 // Example: reflectVector<int>();
-template< typename ItemType, typename UserType = std::vector<ItemType>, typename... Property>
-Factory<UserType>& reflectVector(Property &&... property) {
-  using ValueType = std::remove_pointer_t< typename UserType::value_type >;
+template< typename ItemType, typename Container = std::vector<ItemType>, typename... Property>
+Factory<Container>& reflectVector(Property &&... property) {
+  using ValueType = std::remove_pointer_t< typename Container::value_type >;
   static std::string vname;
   if constexpr (std::is_pointer_v<ItemType>) {
     vname = "std::vector<" + std::string(resolve<ValueType>()->name()) + "*>";
@@ -27,7 +27,21 @@ Factory<UserType>& reflectVector(Property &&... property) {
   else {
     vname = "std::vector<" + std::string(resolve<ValueType>()->name()) + ">";
   }
-  return reflect<UserType>(vname.c_str(), vectorIOs(ItemType), std::forward<Property>(property)...);
+
+  auto getter = [](Ref parent, const char* name) -> Ref {
+    uint32_t idx = atoi(name);
+    Container* container = (Container*)parent.rawAddr();
+    if (container && idx < container->size())
+      return &(*container)[idx];
+    return parent;
+  };
+
+  return reflect<Container>(
+    vname.c_str(),
+    DataResolver({ getter }),
+    vectorIOs(ItemType), 
+    std::forward<Property>(property)...
+    );
 }
 
 void dumpProps(const PropsContainer& props_container) {
@@ -183,7 +197,7 @@ void registerTypes() {
     ;
 
   reflect<CityHousePtrs>("CityHouse")
-    .data<&CityHousePtrs::houses>("Houses");
+    .data<&CityHousePtrs::houses>("houses");
 
   reflectVector<House>();
   reflectVector<int>();
@@ -749,18 +763,101 @@ void testVectors() {
     assert(*chp.houses[i] == *chp2.houses[i]);
   }
 
+  City city2;
+  fromJson(j, &city2);
+  Ref life2 = Ref(&city2).get("houses/1/Life");
+  assert(life2.isValid());
+
 }
+
+
+// ------------------------------------------
+struct CEntity {
+  std::string name;
+  House       house;
+};
+CEntity entities[32];
+int     next_external_index = 0;
+int     external_to_internals[32];
+
+struct CHandle {
+  int type = 0;
+  int external_index = 0;
+  // Automatic cast.
+  operator CEntity* () const
+  {
+    assert( type == 1 );
+    int internal_index = external_to_internals[ external_index ];
+    return &entities[internal_index];
+  }
+};
+
+CHandle newHandle(const std::string& name) {
+  external_to_internals[next_external_index] = next_external_index;
+  CHandle h;
+  h.type = 1;
+  h.external_index = next_external_index;
+  entities[next_external_index].name = name;
+  next_external_index++;
+  return h;
+}
+
+void testEntity() {
+
+  reflect<CEntity>("Entity")
+    .data<&CEntity::name>("name")
+    .data<&CEntity::house>("house")
+    ;
+
+  auto getter = [](Ref parent, const char* member_name) -> Ref {
+    CHandle* h = parent.as<CHandle>();
+    if (h)
+    {
+      CEntity* e = *h;
+      dbg("Getting %s\n", member_name);
+      return Ref(e).get(member_name);
+    }
+    return Ref();
+  };
+
+  reflect<CHandle>("Handle", DataResolver{ getter } )
+  ;
+
+  CHandle h0 = newHandle("Player0");
+  CHandle h1 = newHandle("Player1");
+  CEntity* e0 = h0;
+  CEntity* e1 = h1;
+  assert(e0->name == "Player0"); 
+  assert(e1->name == "Player1");
+
+  json j;
+  toJson(j, e0);
+  dbg("e0 as json %s\n", j.dump().c_str());
+
+  Ref r0(&h0);
+  json jr0;
+  toJson(jr0, r0);
+  dbg("h0 as json %s\n", jr0.dump().c_str());
+
+  dbg("R0 type is %s\n", r0.type()->name());
+  Ref r0_name = r0.get("house/Life");
+  dbg("R0_name is valid: %d. %s\n", r0_name.isValid(), r0_name.type()->name());
+
+  dbg("test Entities done");
+}
+
 
 // -----------------------------------------------------------------
 int main()
 {
   registerTypes();
   dumpTypes();
-  //testTypes();
-  //testBase();
-  //dumpTypes();
-  //testValue();
-  //testFuncs();
-  //testBinary();
+  testTypes();
+  testBase();
+  dumpTypes();
+  testValue();
+  testFuncs();
+  testBinary();
   testVectors();
+  testEntity();
 }

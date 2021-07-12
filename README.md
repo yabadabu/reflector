@@ -19,6 +19,7 @@ HoThis is my reduced toy version from the awesome https://github.com/skypjack/me
 - Copy values between refs
 - Base class.
 - Can reflect methods, by converting all args and return to Values
+- Access members as path member1/1/member2
 
 # Requirements
 - C++ 17

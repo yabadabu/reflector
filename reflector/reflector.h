@@ -33,7 +33,7 @@ namespace REFLECTOR_NAMESPACE {
   struct Factory;
 
   template< typename T >
-  Type* resolve();
+  REFLECTOR_API Type* resolve();
 
   // ----------------------------------------
   // A bag of owned properties. Stores an array
@@ -84,6 +84,7 @@ namespace REFLECTOR_NAMESPACE {
     inline const Type* type()   const { return m_type; }
 
     void setName(const char* new_name) { m_name = new_name; }
+    bool hasName(const char* name_to_compare) const { return strcmp(m_name, name_to_compare) == 0; }
   };
 
   // ----------------------------------------
@@ -116,6 +117,13 @@ namespace REFLECTOR_NAMESPACE {
       for (auto d : m_datas)
         fn(d);
       // Not iterating on the parent data members... Maybe we should?
+    }
+
+    template< typename Fn >
+    void funcs(Fn fn) const {
+      for (auto d : m_funcs)
+        fn(d);
+      // Not iterating on the parent func members... Maybe we should?
     }
 
     // Iterate over all props and my parent props
@@ -175,10 +183,12 @@ namespace REFLECTOR_NAMESPACE {
   // Create an internal namespace to hide some details
   namespace details {
 
-    template< typename UserType >
-    REFLECTOR_API Type* resolve() noexcept {
-      static Type user_type("TypeNameUnknown");
-      return &user_type;
+    template< typename T >
+    struct TypeResolver {
+      static Type* get() {
+        static Type user_type("TypeNameUnknown");
+        return &user_type;
+      }
     };
 
     // ------------------------------------------------------------------
@@ -224,9 +234,10 @@ namespace REFLECTOR_NAMESPACE {
   // --------------------------------------------
   // Forward the call to the ::details method, but first remove const/volatile,etc, etc
   // so 'const int' is the same type as 'int'
+  // We also use a class TypeResolver, instead of a Fn to allow partial specialization
   template< typename UserType >
-  Type* resolve() {
-    return details::resolve< std::decay_t<UserType> >();
+  REFLECTOR_API Type* resolve() {
+    return details::TypeResolver< std::decay_t<UserType> >::get();
   };
  
   // Global function entry to start defining new types
@@ -383,6 +394,11 @@ namespace REFLECTOR_NAMESPACE {
     inline const Type* parent() const { return m_parent; }
   };
 
+  // ----------------------------------------
+  struct DataResolver {
+    Ref(*getter)(Ref parent, const char* name) = nullptr;
+  };
+
   // -------------------------------------------
   // A Ref is a pair of pointers: address + type_info
   // The addr is not owned by the Ref, we are just referencing it.
@@ -405,12 +421,14 @@ namespace REFLECTOR_NAMESPACE {
 
     template< typename UserType >
     Ref(UserType* obj) :
-      m_type(resolve<UserType>()),
+      m_type(resolve< typename std::remove_const<UserType>::type >()),
       m_addr((void*)obj) {
     }
 
     inline const Type* type() const { return m_type; }
     inline const void* rawAddr() const { return m_addr; }
+
+    inline bool operator==(const Ref& other) const { return m_type == other.m_type && m_addr == other.m_addr; }
 
     // Will return null in case the type is not valid
     template< typename UserType>
@@ -449,7 +467,29 @@ namespace REFLECTOR_NAMESPACE {
     // -----------------------------------------
     Ref get(const char* data_name) const {
       assert(data_name);
+      assert(type());
       const Data* d = type()->data(data_name);
+
+      // if no direct data exists, check if the type knows how to resolve 
+      // the string to some internal ref
+      if (!d) {
+        static constexpr char separator = '/';
+        const char* ip = data_name;
+        char sub_name[64];
+        int idx = 0;
+        while (*ip && *ip != separator && idx < 64)
+          sub_name[idx++] = *ip++;
+        if (*ip == separator) {
+          sub_name[idx] = 0x00;
+          Ref child = get(sub_name);
+          return child.get(ip + 1);
+        }
+
+        auto resolver = type()->propByType<DataResolver>();
+        if (resolver)
+          return resolver->getter(*this, data_name);
+      }
+
       assert(d || REFLECTOR_ERROR("Can't find Data member named %s in Ref type %s\n", data_name, type()->name()));
       return get(d);
     }
@@ -567,7 +607,7 @@ namespace REFLECTOR_NAMESPACE {
       };
       user_data.initProp(std::forward<Property>(property)...);
 
-      assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data name(%s) is being defined twice in type %s\n", name, the_type->name()));
+      assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data with name '%s' is being defined twice in type %s\n", name, the_type->name()));
 
       the_type->m_datas.push_back(&user_data);
       return *this;
