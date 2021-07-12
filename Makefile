@@ -50,6 +50,6 @@ $(OBJS_PATH)/%.o : $(SRC_PATH)/%.c $(DEPS)
 
 $(PLUGIN) : $(OBJS_PATH) $(OBJS) 
 	@echo Linking $@
-	@$(CC) $(LNKFLAGS) -o $@ $(OBJS) -lc++ -ldl
+	@$(CC) $(LNKFLAGS) -o $@ $(OBJS) -lstdc++ -ldl
 
 .phony : clean all

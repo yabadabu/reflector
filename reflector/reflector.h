@@ -2,6 +2,9 @@
 
 #include <cassert>
 #include <vector>
+#include <cstdint>			// uint8_t
+#include <cstring>			// strcmp
+#include <functional>			// std::invoke
 #include <new>
 
 #ifndef REFLECTOR_ERROR
