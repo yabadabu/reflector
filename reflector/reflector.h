@@ -610,6 +610,22 @@ namespace REFLECTOR_NAMESPACE {
       assert(the_type->data(name) == nullptr || REFLECTOR_ERROR("data with name '%s' is being defined twice in type %s\n", name, the_type->name()));
 
       the_type->m_datas.push_back(&user_data);
+
+      // Check if a method to notify the change has been defined for this data member, 
+      // and change the setter in that case
+      auto notify_prop = user_data.propByType<void (MainType::*)(Type)>();
+      if (notify_prop) {
+        static auto notify = *notify_prop;
+        user_data.m_setter = [](void* owner, const void* new_value) {
+          MainType& typed_owner = *reinterpret_cast<MainType*>(owner);
+          const Type* typed_new_value = reinterpret_cast<const Type*>(new_value);
+          Type old_value = typed_owner.*Member;
+          typed_owner.*Member = *typed_new_value;
+          // Notify is a pointer to the pointer to the method
+          (typed_owner.*notify)(old_value);
+        };
+      }
+
       return *this;
     }
 

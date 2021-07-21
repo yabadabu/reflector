@@ -87,6 +87,9 @@ struct House {
   House() {
     dbg("House ctor-constructed %p..\n", this);
   }
+  void onLifeUpdate(int old_life) {
+    dbg("House onLifeUpdate called with (%d). Was %d\n", life, old_life);
+  }
   House(const House& other) noexcept {
     life = other.life;
     size = other.size;
@@ -190,7 +193,7 @@ void registerTypes() {
     ;
 
   reflect<House>("House")
-    .data<&House::life>("Life")
+    .data<&House::life>("Life", &House::onLifeUpdate)
     .data<&House::size>("Size")
     .func<&House::render>("Render")
     .func<&House::split>("Split")
